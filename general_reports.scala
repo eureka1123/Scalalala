@@ -36,8 +36,27 @@ object GeneralReports{
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2))))
             .distinct()
+    
+
+
+        val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
+
+        val manyTopicEntities = False
+
+        if (topicLikesB.value.size >= 1000){
+            manyTopicEntities = True
+        }
+
     }
 }
 
+/**
 
+topic_likes_b = sc.broadcast(set(topic_likes.map(lambda x: x[0]).collect()))
+
+many_topic_entities = False
+if len(topic_likes_b.value) >= 1000:
+  many_topic_entities = True
+
+**/
 
