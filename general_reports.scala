@@ -47,7 +47,32 @@ object GeneralReports{
             manyTopicEntities = True
         }
 
+
+
+
+
     }
 }
+
+/**
+#(location_ID, person_ID)
+location_facts = sc.textFile(DATA_ROOT + '/fact_location', SLICES).map(lambda x: x.split('\t')) \
+  .filter(lambda x: len(x) > 2) \
+  .map(lambda x: (x[2], x[1])) \
+  .distinct() \
+  .setName('location_facts') \
+  .cache()
+
+
+
+
+#(location_ID, state name) for India
+india_locations = sc.textFile(DATA_ROOT + '/dim_location', SLICES).map(lambda x: x.split('\t')) \
+  .filter(lambda x: len(x) > 7) \
+  .filter(lambda x: x[6] == 'India') \
+  .filter(lambda x: x[7] != 'null') \
+  .map(lambda x: (x[0], x[7])) \
+  .distinct()
+**/
 
 
