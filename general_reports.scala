@@ -11,7 +11,6 @@ object GeneralReports{
     val ENTITY_FILE = TOPIC + "_entities2.txt"
     val SLICES = 2000
 
-    
     //def safe_date_from_str(input:String) : String = {
     //}
     
@@ -20,53 +19,43 @@ object GeneralReports{
 
     def main(args: Array[String]) {
 
-        val likeFacts = sc.textFile(DATA_ROOT+"/fact_like", SLICES)
-            .map(x => x.split("/t"))
+        var likeFacts = sc.textFile(DATA_ROOT+"/fact_like", SLICES).map(x => x.split("/t"))
             .filter(x => (x.length > 2))
-            .map(x => (x(0),x(1),x(2)))
+            .map(x => (x(0),(x(1),x(2))))
             .distinct()
 
-        val dimLikes = sc.textFile(DATA_ROOT+"/dim_like", SLICES)
-            .map(x => x.split("/t"))
+        val dimLikes = sc.textFile(DATA_ROOT+"/dim_like", SLICES).map(x => x.split("/t"))
             .filter(x => (x.length > 3))
             .setName("dimLikes")
             .cache()
 
         val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
-        val likes = dimLikes.map(x => (x(0), (x(1), x(2))))
-            .distinct()
+        val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
     
+        //val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
 
+        // val manyTopicEntities = False
 
-        val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
+        // if (topicLikesB.value.size >= 1000){
+        //     manyTopicEntities = True
+        // }
 
-        val manyTopicEntities = False
-
-        if (topicLikesB.value.size >= 1000){
-            manyTopicEntities = True
-        }
-
-        val locationFacts = sc.textFile(DATA_ROOT+ "/fact_location", SLICES)
-            .map(x => x.split("\t"))
+        val locationFacts = sc.textFile(DATA_ROOT+ "/fact_location", SLICES).map(x => x.split("\t"))
             .filter(x => x.size > 2)
             .map(x => (x(2), x(1)))
             .distinct()
             .setName("location_facts")
             .cache()
 
-
-        val indiaLocations = sc.textFile(DATA_ROOT+ "/dim_location", SLICES)
-            .map(x => x.split("\t"))
+        val indiaLocations = sc.textFile(DATA_ROOT+ "/dim_location", SLICES).map(x => x.split("\t"))
             .filter(x => x.size > 7)
             .filter(x => x(6) == "India")
             .filter(x => x(7) != "null")
             .map(x => (x(0),x(7)))
             .distinct()
 
-    
-        val anyIndiaLocations = sc.textFile(DATA_ROOT + "/dim_location", SLICES)
-            .map(x => x.split("\t"))
+        val anyIndiaLocations = sc.textFile(DATA_ROOT + "/dim_location", SLICES).map(x => x.split("\t"))
             .filter(x => x.size > 6)
             .filter(x => x(6) == "India")
             .map(x => (x(0),x(6)))
@@ -74,28 +63,26 @@ object GeneralReports{
             .setName("any_india_locations")
             .cache()
         
-        val indiaPeople = locationFacts 
-            .join(anyIndiaLocations)
-            .map(x=> (x(1)(0), x(1)(1)))
+        val indiaPeople = locationFacts.join(anyIndiaLocations)
+            .map(x=> (x._1(0), x._1(1)))
             .setName("india_people")
             .distinct()
             .cache()
         
-        val indiaPeopleStates = locationFacts
-            .join(indiaLocations)
-            .map(x => (x(1)(0), x(1)(1)))
+        val indiaPeopleStates = locationFacts.join(indiaLocations)
+            .map(x => ((x._1)(0), (x._1)(1)))
             .distinct()
             .cache()
 
-        val likeFacts = likeFacts
-            .map(x(1)(0), (x(0), x(1)(1)))
+        likeFacts = likeFacts.map(x => (x._1(0), (x._0, x._1(1))))
+            .join(indiaPeople)
+            .map(x => x._1(0)(0), (x._0, x._1(0)(1)))
             .distinct()
             .coalesce(SLICES)
             .setName("like_facts")
             .cache()
 
-        val personTotalLikeCounts = likeFacts
-            .map(x => (x(1)(0), 1))
+        val personTotalLikeCounts = likeFacts.map(x => (x._1(0), 1))
             .reduceByKey(add)
             .distinct()
             .setName("personalTotalLikeCounts")
