@@ -64,9 +64,28 @@ object GeneralReports{
             .map(x => (x(0),x(7)))
             .distinct()
 
-
-
-
+    
+        val anyIndiaLocations = sc.textFile(DATA_ROOT + "/dim_location", SLICES)
+            .map(x => x.split("\t"))
+            .filter(x => x.size > 6)
+            .filter(x => x(6) == "India")
+            .map(x => (x(0),x(6)))
+            .distinct()
+            .setName("any_india_locations")
+            .cache()
+        
+        val indiaPeople = locationFacts 
+            .join(anyIndiaLocations)
+            .map(x=> (x(1)(0), x(1)(1)))
+            .setName("india_people")
+            .distinct()
+            .cache()
+        
+        val indiaPeopleStates = locationFacts
+            .join(indiaLocations)
+            .map(x => (x(1)(0), x(1)(1)))
+            .distinct()
+            .cache()
 
         val likeFacts = likeFacts
             .map(x(1)(0), (x(0), x(1)(1)))
