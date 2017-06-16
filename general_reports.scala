@@ -81,7 +81,8 @@ object GeneralReports{
             .coalesce(SLICES)
             .setName("like_facts")
             .cache()
-                val personTotalLikeCounts = likeFacts.map(x => (x._2._1, 1))
+        
+        val personTotalLikeCounts = likeFacts.map(x => (x._2._1, 1))
             .reduceByKey((x,y) => (x+y))
             .distinct()
             .setName("personalTotalLikeCounts")
