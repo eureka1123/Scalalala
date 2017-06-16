@@ -10,7 +10,10 @@ object GeneralReports{
 	global val ARCHIVE_ROOT = "hdfs://10.142.0.63:9000/" + TOPIC
 	global val ENTITY_FILE = TOPIC + "_entities2.txt"
 	global val SLICES = 2000
-
+	
+	def main(args: Array[String]) {
+	
+	}
 }
 
 
