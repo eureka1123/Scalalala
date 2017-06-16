@@ -14,6 +14,43 @@ object GeneralReports{
 	def main(args: Array[String]) {
 	
 	}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    val likeFacts = sc.textFile(DATA_PATH, SLICES)
+        .map(x => x.split("/t"))
+        .filter(x => (x.length > 2))
+        .map(x => (x(0),x(1),x(2)))
+        .distinct()
+
+    val dimLikes = sc.textFile(DATA_PATH, SLICES)
+        .map(x => x.split("/t"))
+        .filter(x => (x.length > 3))
+        .setName("dimLikes")
+        .cache()
+
+    val iaFbMapB = sc.broadcast((dim_likes.map(lambda x: (x[0] -> x[3])).distinct().collect()).toMap)
+
+    val likes = dimLikes
+        .map(x => (x(0) -> (x(1) -> x(2))))
+        .distinct()
+
+}
+
+
 }
 
 
