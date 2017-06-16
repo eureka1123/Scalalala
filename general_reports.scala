@@ -48,24 +48,41 @@ object GeneralReports{
         }
 
         val locationFacts = sc.textFile(DATA_ROOT+ "/fact_location", SLICES)
-                                .map(x => x.split("\t"))
-                                .filter(x => x.size > 2)
-                                .map(x => (x(2), x(1)))
-                                .distinct()
-                                .setName("location_facts")
-                                .cache()
+            .map(x => x.split("\t"))
+            .filter(x => x.size > 2)
+            .map(x => (x(2), x(1)))
+            .distinct()
+            .setName("location_facts")
+            .cache()
 
 
         val indiaLocations = sc.textFile(DATA_ROOT+ "/dim_location", SLICES)
-                                .map(x => x.split("\t"))
-                                .filter(x => x.size > 7)
-                                .filter(x => x(6) == "India")
-                                .filter(x => x(7) != "null")
-                                .map(x => (x(0),x(7)))
-                                .distinct()
+            .map(x => x.split("\t"))
+            .filter(x => x.size > 7)
+            .filter(x => x(6) == "India")
+            .filter(x => x(7) != "null")
+            .map(x => (x(0),x(7)))
+            .distinct()
 
+
+
+
+
+        val likeFacts = likeFacts
+            .map(x(1)(0), (x(0), x(1)(1)))
+            .distinct()
+            .coalesce(SLICES)
+            .setName("like_facts")
+            .cache()
+
+        val personTotalLikeCounts = likeFacts
+            .map(x => (x(1)(0), 1))
+            .reduceByKey(add)
+            .distinct()
+            .setName("personalTotalLikeCounts")
+            .cache()
+
+        personTotalLikeCounts.count()
 
     }
 }
-
-
