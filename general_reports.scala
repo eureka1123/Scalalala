@@ -19,7 +19,7 @@ object GeneralReports{
 
 	def main(args: Array[String]) {
 	
-	}
+	
 
     val likeFacts = sc.textFile(DATA_PATH, SLICES)
         .map(x => x.split("/t"))
