@@ -21,21 +21,6 @@ object GeneralReports{
 	
 	}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     val likeFacts = sc.textFile(DATA_PATH, SLICES)
         .map(x => x.split("/t"))
         .filter(x => (x.length > 2))
