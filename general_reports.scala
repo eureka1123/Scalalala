@@ -50,13 +50,4 @@ object GeneralReports{
     }
 }
 
-/**
-
-topic_likes_b = sc.broadcast(set(topic_likes.map(lambda x: x[0]).collect()))
-
-many_topic_entities = False
-if len(topic_likes_b.value) >= 1000:
-  many_topic_entities = True
-
-**/
 
