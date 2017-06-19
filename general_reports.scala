@@ -17,6 +17,19 @@ object GeneralReports{
     //def safe_float(input:String) : Float ={
     //}
 
+
+    conf = SparkConf()
+    conf.setAppName("YOUR APP NAME HERE")
+    conf.setMaster("spark://compute-master:7077")
+    conf.set("spark.cores.max", "4")
+    conf.set("spark.shuffle.consolidateFiles", "true")
+    conf.set("spark.default.parallelism", "100")
+    conf.set("spark.executor.memory", "20g")
+        
+    sc = SparkContext(conf=conf)
+
+
+
     def main(args: Array[String]) {
 
         var likeFacts = sc.textFile(DATA_ROOT+"/fact_like", SLICES).map(x => x.split("/t"))
