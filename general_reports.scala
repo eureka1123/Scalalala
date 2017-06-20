@@ -175,5 +175,43 @@ object GeneralReports{
             .mapValues(x => x._1)
             .setName("people")
             .cache()
+
+        def safe_date_from_str(input : String) : Option[Calendar] = {
+            val reg = """\d\d/\d\d/\d\d\d\d""".r
+            var allMatch : Array[String] = reg.findAllIn(input).toArray
+            if (allMatch.length == 1) {
+                var dateOB : Date = new Date(allMatch(0))
+
+                var cal : Calendar = new GregorianCalendar()
+                cal.setTime(dateOB)
+
+                return Some(cal)
+
+            } else {
+                return None
+            }
+        }
+
+        def getAge( date : Option[Calendar]) : Double = {
+            var age: Double =0.0
+            val milliInYear: Double =31557600000.0
+            
+            val today : Calendar = Calendar.getInstance()
+            date match {
+                case Some(date) => age= (today.getTime().getTime() - date.getTime().getTime())/milliInYear
+                case None => val age= -1
+            }
+
+            return age
+        }
+
+        //(person_ID, python time structure of birthday) - not actually age yet!
+        val peopleBirthdays = people
+            .filter(x => x._2(5) != "null")
+            .map(x => (x._1, safe_date_from_str(x._2(5))))
+            .filter(x => x._2.getClass.getSimpleName != None.getClass.getSimpleName)
+            .coalesce(SLICES)
+            .setName("people_birthdays")
+            .cache()
     }
 }
