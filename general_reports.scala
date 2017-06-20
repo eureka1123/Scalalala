@@ -33,6 +33,8 @@ object GeneralReports{
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
     
+        // ENTITY_FILE STUFF
+        
         //val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
 
         // val manyTopicEntities = False
@@ -89,5 +91,22 @@ object GeneralReports{
 
         personTotalLikeCounts.count()
 
+        val fileExists = true //need to write definition
+
+        if (!fileExists) {
+            val bigLikes = likeFacts.map(x => (x._2._2, 1))
+                .reduceByKey((x,y) => (x+y))
+                .filter(x => x._2 > 999)
+                .map(x => x._1)
+                .coalesce(SLICES)
+                .setName("bigLikes")
+                .cache()
+
+            bigLikes.saveAsTextFile("hdfs://hadoopmaster:9000/' + TOPIC + '/big_likes")
+        } else {
+            val bigLikes = sc.textFile("hdfs://hadoopmaster:9000/' + TOPIC + '/big_likes")
+                .setName("bigLikes")
+                .cache()
+        }
     }
 }
