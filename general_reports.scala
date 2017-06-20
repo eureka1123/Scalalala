@@ -165,5 +165,15 @@ object GeneralReports{
             .distinct()
             .setName("personTopicProportions")
             .cache()
+    
+        // This part is dealing with new data person_info
+        //Lots of info, for people in India
+        val people = sc.textFile(DATA_ROOT + "/person_info", SLICES).map(x => x.split("""\t"""))
+            .filter(x => x.size > 8)
+            .map(x => (x(0), x.drop(1)))
+            .join(indiaPeople)
+            .mapValues(x => x._1)
+            .setName("people")
+            .cache()
     }
 }
