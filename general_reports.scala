@@ -34,7 +34,7 @@ object GeneralReports{
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
     
         // ENTITY_FILE STUFF
-        
+
         //val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
 
         // val manyTopicEntities = False
@@ -108,5 +108,28 @@ object GeneralReports{
                 .setName("bigLikes")
                 .cache()
         }
+
+        val topicLikesData = Array(("1",2),("3",4)) //placeholder
+        val topicLikes = sc.parallelize(topicLikesData)
+
+        //(like_ID, (name, type))
+        val topicAndBigLikes = topicLikes
+            .map(x => x._1)
+            .union(bigLikes)
+            .map(x => (x, 1))
+            .join(likes)
+            .mapValues(x => x._2)
+            .distinct()
+            .coalesce(SLICES)
+            .setName("topic_and_big_likes")
+            .cache()
+
+        //(like_ID, user_ID)
+        val targetedLikeFacts = likeFacts //#(fact_ID, (person_ID, like_ID))
+            .map(x => (x._2._2, x._2._1))
+            .setName("targetedLikeFacts")
+            .cache()
+        targetedLikeFacts.count()
+        likeFacts.unpersist()
     }
 }
