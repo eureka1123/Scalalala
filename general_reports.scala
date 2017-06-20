@@ -17,27 +17,14 @@ object GeneralReports{
     //def safe_float(input:String) : Float ={
     //}
 
-
-    conf = SparkConf()
-    conf.setAppName("YOUR APP NAME HERE")
-    conf.setMaster("spark://compute-master:7077")
-    conf.set("spark.cores.max", "4")
-    conf.set("spark.shuffle.consolidateFiles", "true")
-    conf.set("spark.default.parallelism", "100")
-    conf.set("spark.executor.memory", "20g")
-        
-    sc = SparkContext(conf=conf)
-
-
-
     def main(args: Array[String]) {
 
-        var likeFacts = sc.textFile(DATA_ROOT+"/fact_like", SLICES).map(x => x.split("/t"))
+        var likeFacts = sc.textFile(DATA_ROOT+"/fact_like", SLICES).map(x => x.split("""\t"""))
             .filter(x => (x.length > 2))
             .map(x => (x(0),(x(1),x(2))))
             .distinct()
 
-        val dimLikes = sc.textFile(DATA_ROOT+"/dim_like", SLICES).map(x => x.split("/t"))
+        val dimLikes = sc.textFile(DATA_ROOT+"/dim_like", SLICES).map(x => x.split("""\t"""))
             .filter(x => (x.length > 3))
             .setName("dimLikes")
             .cache()
@@ -54,21 +41,21 @@ object GeneralReports{
         //     manyTopicEntities = True
         // }
 
-        val locationFacts = sc.textFile(DATA_ROOT+ "/fact_location", SLICES).map(x => x.split("\t"))
+        val locationFacts = sc.textFile(DATA_ROOT+ "/fact_location", SLICES).map(x => x.split("""\t"""))
             .filter(x => x.size > 2)
             .map(x => (x(2), x(1)))
             .distinct()
             .setName("location_facts")
             .cache()
 
-        val indiaLocations = sc.textFile(DATA_ROOT+ "/dim_location", SLICES).map(x => x.split("\t"))
+        val indiaLocations = sc.textFile(DATA_ROOT+ "/dim_location", SLICES).map(x => x.split("""\t"""))
             .filter(x => x.size > 7)
             .filter(x => x(6) == "India")
             .filter(x => x(7) != "null")
             .map(x => (x(0),x(7)))
             .distinct()
 
-        val anyIndiaLocations = sc.textFile(DATA_ROOT + "/dim_location", SLICES).map(x => x.split("\t"))
+        val anyIndiaLocations = sc.textFile(DATA_ROOT + "/dim_location", SLICES).map(x => x.split("""\t"""))
             .filter(x => x.size > 6)
             .filter(x => x(6) == "India")
             .map(x => (x(0),x(6)))
@@ -94,8 +81,7 @@ object GeneralReports{
             .coalesce(SLICES)
             .setName("like_facts")
             .cache()
-        
-        val personTotalLikeCounts = likeFacts.map(x => (x._2._1, 1))
+                val personTotalLikeCounts = likeFacts.map(x => (x._2._1, 1))
             .reduceByKey((x,y) => (x+y))
             .distinct()
             .setName("personalTotalLikeCounts")
