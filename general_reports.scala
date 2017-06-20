@@ -1,6 +1,9 @@
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import org.apache.spark.SparkConf
+import java.util.Date
+import java.util.Calendar
+import java.util.GregorianCalendar
 
 object GeneralReports{
     val TOPIC = "missmalini"
@@ -93,8 +96,11 @@ object GeneralReports{
 
         val fileExists = true //need to write definition
 
+        var data = Array("1","2")
+        var bigLikes = sc.parallelize(data)
+
         if (!fileExists) {
-            val bigLikes = likeFacts.map(x => (x._2._2, 1))
+            bigLikes = likeFacts.map(x => (x._2._2, 1))
                 .reduceByKey((x,y) => (x+y))
                 .filter(x => x._2 > 999)
                 .map(x => x._1)
@@ -102,9 +108,9 @@ object GeneralReports{
                 .setName("bigLikes")
                 .cache()
 
-            bigLikes.saveAsTextFile("hdfs://hadoopmaster:9000/' + TOPIC + '/big_likes")
+            bigLikes.saveAsTextFile("hdfs://:9000/' + TOPIC + '/big_likes")
         } else {
-            val bigLikes = sc.textFile("hdfs://hadoopmaster:9000/' + TOPIC + '/big_likes")
+            bigLikes = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
                 .setName("bigLikes")
                 .cache()
         }
@@ -205,7 +211,7 @@ object GeneralReports{
             return age
         }
 
-        //(person_ID, python time structure of birthday) - not actually age yet!
+        //(person_ID, java calendar structure of birthday) - not actually age yet!
         val peopleBirthdays = people
             .filter(x => x._2(5) != "null")
             .map(x => (x._1, safe_date_from_str(x._2(5))))
@@ -213,5 +219,22 @@ object GeneralReports{
             .coalesce(SLICES)
             .setName("people_birthdays")
             .cache()
+    
+        //(person_ID, age in years)
+        
+        val people_ages = peopleBirthdays
+          .map(x => (x._1, getAge(x._2)))
+          .coalesce(SLICES)
+          .setName("people_ages")
+          .cache()
+
+        def get_ageband(x: Int) : String = {
+            if (x < 18) { return "Under 18" }
+            if (x < 25) { return "18-24" }
+            if (x < 35) { return "25-34" }
+            if (x < 45) { return "35-44" }
+            if (x < 55) { return "45-54" }
+            return "55+"
+        }
     }
 }
