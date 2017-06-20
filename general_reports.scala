@@ -131,5 +131,39 @@ object GeneralReports{
             .cache()
         targetedLikeFacts.count()
         likeFacts.unpersist()
+
+        //(person_ID, number_of_topic_and_big_likes) for people who like something big and/or topic
+        val personRelevantLikeCounts = topicAndBigLikes
+            .join(targetedLikeFacts) // (like_ID, ((name,type), user_ID))
+            .map(x => (x._2._2, 1))
+            .reduceByKey((x,y) => (x+y))
+            .distinct()
+            .coalesce(SLICES)
+            .setName("personRelevantLikeCounts")
+            .cache()
+
+        //(like_ID, (1, user_ID)) for like_IDs in topic
+        val topicLikeFacts = topicLikes
+            .map(x => (x._1, 1))
+            .join(targetedLikeFacts)
+            .distinct()
+            .setName("topicLikeFacts")
+            .cache()
+
+        //(person_ID, number_of_topic_likes) for people who like something in topic
+        val personTopicLikeCounts = topicLikeFacts
+            .map(x => (x._2._2, 1))
+            .reduceByKey((x,y) => (x+y))
+            .distinct()
+            .setName("personTopicLikeCounts")
+            .cache()
+
+        //(person_ID, fraction of likes that are topic-related)
+        val personTopicProportions = personRelevantLikeCounts
+            .leftOuterJoin(personTopicLikeCounts)
+            .map(x => (x._1, if (x._2._2.getClass.getSimpleName == None.getClass.getSimpleName) { 0.0 } else {x._2._2.get.toFloat/x._2._1}))
+            .distinct()
+            .setName("personTopicProportions")
+            .cache()
     }
 }
