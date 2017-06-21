@@ -222,13 +222,13 @@ object GeneralReports{
     
         //(person_ID, age in years)
         
-        val people_ages = peopleBirthdays
+        val peopleAges = peopleBirthdays
           .map(x => (x._1, getAge(x._2)))
           .coalesce(SLICES)
           .setName("people_ages")
           .cache()
 
-        def get_ageband(x: Int) : String = {
+        def get_ageband(x: Double) : String = {
             if (x < 18) { return "Under 18" }
             if (x < 25) { return "18-24" }
             if (x < 35) { return "25-34" }
@@ -236,5 +236,18 @@ object GeneralReports{
             if (x < 55) { return "45-54" }
             return "55+"
         }
+
+        val peopleAgebands = peopleAges
+            .map(x => (x._1, get_ageband(x._2)))
+            .cache()
+        
+        //(person ID, gender)
+        val peopleGenders = people
+          .filter(x => x._2(9) != "null")
+          .map(x => (x._1, x._2(9)))
+          .coalesce(SLICES)
+          .distinct()
+          .setName("people_genders")
+          .cache()
     }
 }
