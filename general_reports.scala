@@ -61,6 +61,16 @@ object GeneralReports {
         //     manyTopicEntities = True
         // }
 
+        private val conf = new Configuration()
+        private val hdfsCorePath = new Path("core-site.xml")
+        private val hdfsHDFSPath = new Path("hdfs-site.xml")
+        conf.addResource(hdfsCorePath)
+        conf.addResource(hdfsHDFSPath)
+        private val fileSystem = FileSystem.get(conf)
+        val path = new Path("/"+TOPIC)
+        fileSystem.mkdirs(path) 
+        
+
         val dir: File = new File(REPORT_DIR);
         val dir2: File = new File(REPORT_DIR+"/predictors");
         dir.mkdir();
