@@ -6,6 +6,8 @@ import org.apache.spark.SparkConf
 import java.util.Date
 import java.util.Calendar
 import java.util.GregorianCalendar
+import org.apache.hadoop.conf._
+import org.apache.hadoop.fs._
 
 object GeneralReports {
 
@@ -58,6 +60,12 @@ object GeneralReports {
         // if (topicLikesB.value.size >= 1000){
         //     manyTopicEntities = True
         // }
+
+        val dir: File = new File(REPORT_DIR);
+        val dir2: File = new File(REPORT_DIR+"/predictors");
+        dir.mkdir();
+        dir2.mkdir();
+
 
         val locationFacts = sc.textFile(DATA_ROOT+ "/fact_location", SLICES).map(x => x.split("""\t"""))
             .filter(x => x.size > 2)
