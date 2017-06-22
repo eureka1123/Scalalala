@@ -125,7 +125,8 @@ object GeneralReports {
 
         personTotalLikeCounts.count()
 
-        val fileExists = true //need to write definition
+        val pathBigLikes = new Path("/" + TOPIC + "big_likes")
+        val fileExists = fileSystem.exists(pathBigLikes)
 
         var data = Array("1","2")
         var bigLikes = sc.parallelize(data)
