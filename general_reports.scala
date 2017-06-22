@@ -69,7 +69,7 @@ object GeneralReports {
         private val fileSystem = FileSystem.get(conf)
         val path = new Path("/"+TOPIC)
         fileSystem.mkdirs(path) 
-        
+
 
         val dir: File = new File(REPORT_DIR);
         val dir2: File = new File(REPORT_DIR+"/predictors");
@@ -139,7 +139,7 @@ object GeneralReports {
                 .setName("bigLikes")
                 .cache()
 
-            bigLikes.saveAsTextFile("hdfs://:9000/' + TOPIC + '/big_likes")
+            bigLikes.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
         } else {
             bigLikes = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
                 .setName("bigLikes")
