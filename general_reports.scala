@@ -243,11 +243,13 @@ object GeneralReports{
         
         //(person ID, gender)
         val peopleGenders = people
-          .filter(x => x._2(9) != "null")
-          .map(x => (x._1, x._2(9)))
-          .coalesce(SLICES)
-          .distinct()
-          .setName("people_genders")
-          .cache()
+            .filter(x => x._2(9) != "null")
+            .map(x => (x._1, x._2(9)))
+            .coalesce(SLICES)
+            .distinct()
+            .setName("people_genders")
+            .cache()
+
+
     }
 }
