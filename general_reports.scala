@@ -35,27 +35,27 @@ object GeneralReports {
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
 
-        val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
-            if (a!=None){
-                val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
-                val sr2="malini".r.findFirstMatchIn((a+b).toLowerCase())
-                if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
-                    true
-                } else {
-                    false
-                }
-            }else{
-                false
-            }
-        }
+        // THIS IS OLD, BUT CAN HELP FIND ENTITIES
+        // val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
+        //     if (a!=None){
+        //         val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
+        //         val sr2="malini".r.findFirstMatchIn((a+b).toLowerCase())
+        //         if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
+        //             true
+        //         } else {
+        //             false
+        //         }
+        //     }else{
+        //         false
+        //     }
+        // }
 
-        val fbEntities = likes.filter(x=>safe_match(x._2._1,x._2._2)).collect()
-        val fp = new PrintWriter(new File(ENTITY_FILE))
-        fp.write(fbEntities.mkString(""))
-        fp.close()
+        // val fbEntities = likes.filter(x=>safe_match(x._2._1,x._2._2)).collect()
+        // val fp = new PrintWriter(new File(ENTITY_FILE))
+        // fp.write(fbEntities.mkString(""))
+        // fp.close()
 
         //val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
-
         // val manyTopicEntities = False
 
         // if (topicLikesB.value.size >= 1000){
@@ -124,8 +124,8 @@ object GeneralReports {
 
         personTotalLikeCounts.count()
 
-        val pathBigLikes = new Path("/" + TOPIC + "big_likes")
-        val fileExists = fileSystem.exists(pathBigLikes)
+        var pathBigLikes = new Path("/" + TOPIC + "big_likes")
+        var fileExists = fileSystem.exists(pathBigLikes)
 
         var data = Array("1","2")
         var bigLikes = sc.parallelize(data)
@@ -312,6 +312,33 @@ object GeneralReports {
         val bigLikeFacts = bigLikes.map(x => (x,1))
             .join(targetedLikeFacts)
             .map(x => (x._2._2, x._1))
+
+        pathBigLikes = new Path("/" + TOPIC + "like_topic_fractions")
+        fileExists = fileSystem.exists(pathBigLikes)
+
+        var likeTopicFractions = sc.parallelize(data)
+
+        if (!fileExists) {
+            //(like_ID, topic_like_proportion) for each person who likes like_ID (for big+topic likes)
+            likeTopicFractions = bigLikeFacts.join(personTopicProportions)
+                .map(x => (x._2._1, x._2._2))
+                .cache()
+            likeTopicFractions.saveAsTextFile("hdfs://hadoopmaster:9000/" + TOPIC + "/like_topic_fractions")
+        } else{
+            like_topic_fractions = sc.textFile("hdfs://hadoopmaster:9000/" + TOPIC + "/like_topic_fractions").map(eval).cache()) //fix eval
+        } 
+
+        pathBigLikes = new Path("/" + TOPIC + "like_topic_sum")
+        fileExists = fileSystem.exists(pathBigLikes)
+
+        var likeTopicSum = sc.parallelize(data)
+
+        if(!fileExists) {
+            likeTopicSum = likeTopicFractions.reduceByKey((x,y) => (x+y)).cache() //This should give a measure of popularity of things, weighted by how big a topic fan each liker is. Normalizing it by count, as done below, gives a measure of strength of implication.
+            likeTopicSum.saveAsTextFile("hdfs://hadoopmaster:9000/" + TOPIC + "/like_topic_sum")
+        } else{
+            likeTopicSum = sc.textFile("hdfs://hadoopmaster:9000/" + TOPIC + "/like_topic_sum").map(eval)
+        }
 
     }
 }
