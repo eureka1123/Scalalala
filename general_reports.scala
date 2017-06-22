@@ -8,6 +8,7 @@ import java.util.Calendar
 import java.util.GregorianCalendar
 import org.apache.hadoop.conf._
 import org.apache.hadoop.fs._
+import org.apache.commons.lang3.text.WordUtils
 
 object GeneralReports {
 
@@ -279,5 +280,38 @@ object GeneralReports {
             .distinct()
             .setName("people_genders")
             .cache()
+
+        def clean_relationships(rel: String) : String = {
+            return WordUtils.capitalize(rel).replaceAll("""\(Pending)\""","") //does not include unicode, may need to be fixed
+        }
+
+        //(person ID, relationship status)
+        //The isdigit filtering is because there are a bunch of relationship values that are dates.
+        //Not sure why, or what it indicates, but for now I'm just ignoring them.
+        val peopleRelationships = people
+            .filter(x => x._2(7) != "null" && !(x._2(7)(0).isDigit))
+            .map(x => (x._1, x._2(7)))
+            .coalesce(SLICES)
+            .map(x => (x._1, clean_relationships(x._2)))
+            .distinct()
+            .setName("people_relationships")
+            .cache()
+        //cache() only used here for debugging, shouldn't be needed?
+
+        //(person ID, locale (i.e. language/country))
+        val peopleLocales = people
+            .filter(x => x._2(14) != "null")
+            .map(x => (x._1, x._2(14)))
+            .coalesce(SLICES)
+            .distinct()
+            .setName("people_locales")
+            .cache()
+        //cache() only used here for debugging, shouldn't be needed?
+        
+        //(person_ID, like_ID) for all big likes and all people who like them
+        val bigLikeFacts = bigLikes.map(x => (x,1))
+            .join(targetedLikeFacts)
+            .map(x => (x._2._2, x._1))
+
     }
 }
