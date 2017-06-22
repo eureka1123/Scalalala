@@ -15,18 +15,6 @@ object GeneralReports {
     //def safe_float(input:String) : Float ={
     //}
 
-<<<<<<< HEAD
-    // conf = SparkConf()
-    // conf.setAppName("YOUR APP NAME HERE")
-    // conf.setMaster("spark://compute-master:7077")
-    // conf.set("spark.cores.max", "4")
-    // conf.set("spark.shuffle.consolidateFiles", "true")
-    // conf.set("spark.default.parallelism", "100")
-    // conf.set("spark.executor.memory", "20g")
-        
-    // sc = SparkContext(conf=conf)
-=======
->>>>>>> 86a0bafdb18b74831e252d64ee76d6d1cfab383c
     def main(args: Array[String]) {
         val TOPIC = "missmalini"
         val TOPIC_NAME = "MissMalini"
@@ -49,8 +37,7 @@ object GeneralReports {
         val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
-<<<<<<< HEAD
-        
+
         likes.saveAsTextFile("""/home/xiaoluguo/""")
 
         val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
@@ -84,10 +71,8 @@ object GeneralReports {
         val fp = new PrintWriter(new File(ENTITY_FILE))
         fp.write(fbEntities.mkString(""))
         fp.close()
-=======
     
         // ENTITY_FILE STUFF
->>>>>>> 86a0bafdb18b74831e252d64ee76d6d1cfab383c
 
         //val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
 
@@ -300,7 +285,6 @@ object GeneralReports {
             .distinct()
             .setName("people_genders")
             .cache()
-
 
     }
     // def safe_match(input:String){
