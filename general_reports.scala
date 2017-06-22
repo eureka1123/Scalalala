@@ -1,3 +1,5 @@
+import scala.util.matching.Regex
+import java.io._
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import org.apache.spark.SparkConf
@@ -5,14 +7,7 @@ import java.util.Date
 import java.util.Calendar
 import java.util.GregorianCalendar
 
-object GeneralReports{
-    val TOPIC = "missmalini"
-    val TOPIC_NAME = "MissMalini"
-    val REPORT_DIR = "/home/xiaoluguo/missmalini/"
-    val DATA_ROOT = "hdfs://10.142.0.63:9000/data"
-    val ARCHIVE_ROOT = "hdfs://10.142.0.63:9000/" + TOPIC
-    val ENTITY_FILE = TOPIC + "_entities2.txt"
-    val SLICES = 2000
+object GeneralReports {
 
     //def safe_date_from_str(input:String) : String = {
     //}
@@ -20,7 +15,26 @@ object GeneralReports{
     //def safe_float(input:String) : Float ={
     //}
 
+<<<<<<< HEAD
+    // conf = SparkConf()
+    // conf.setAppName("YOUR APP NAME HERE")
+    // conf.setMaster("spark://compute-master:7077")
+    // conf.set("spark.cores.max", "4")
+    // conf.set("spark.shuffle.consolidateFiles", "true")
+    // conf.set("spark.default.parallelism", "100")
+    // conf.set("spark.executor.memory", "20g")
+        
+    // sc = SparkContext(conf=conf)
+=======
+>>>>>>> 86a0bafdb18b74831e252d64ee76d6d1cfab383c
     def main(args: Array[String]) {
+        val TOPIC = "missmalini"
+        val TOPIC_NAME = "MissMalini"
+        val REPORT_DIR = "/home/xiaoluguo/missmalini/"
+        val DATA_ROOT = "hdfs://10.142.0.63:9000/data"
+        val ARCHIVE_ROOT = "hdfs://10.142.0.63:9000/" + TOPIC
+        val ENTITY_FILE = TOPIC + "_entities.txt"
+        val SLICES = 2000
 
         var likeFacts = sc.textFile(DATA_ROOT+"/fact_like", SLICES).map(x => x.split("""\t"""))
             .filter(x => (x.length > 2))
@@ -35,8 +49,45 @@ object GeneralReports{
         val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
+<<<<<<< HEAD
+        
+        likes.saveAsTextFile("""/home/xiaoluguo/""")
+
+        val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
+            if (a!=None){
+                val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
+                val sr2="malini".r.findFirstMatchIn((a+b).toLowerCase())
+                if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
+                    true
+                } else {
+                    false
+                }
+            }else{
+                false
+            }
+
+            // if (input._2._1!=None){
+            //     val sr ="miss".r.findFirstMatchIn(input._2._1.toLowerCase())
+            //     val sr2="malini".r.findFirstMatchIn((input._2._1+input._2._2).toLowerCase())
+            //     if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
+            //         true
+            //     } else {
+            //         false
+            //     }
+            // }else{
+            //     false
+            // }
+        }
+
+        val fbEntities = likes.filter(x=>true).collect()
+        // fbEntities.saveAsTextFile("""/home/xiaoluguo/"""+ENTITY_FILE)
+        val fp = new PrintWriter(new File(ENTITY_FILE))
+        fp.write(fbEntities.mkString(""))
+        fp.close()
+=======
     
         // ENTITY_FILE STUFF
+>>>>>>> 86a0bafdb18b74831e252d64ee76d6d1cfab383c
 
         //val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
 
@@ -252,4 +303,11 @@ object GeneralReports{
 
 
     }
+    // def safe_match(input:String){
+    //     if (input(1)(0)!=None){
+    //         sr ="miss".r.findFirstMatchIn(input(1)(0).toLowerCase())
+    //         sr2="malini".r.findFirstMatchIn((input(1)(0)+input(1)(1)).toLowerCase())
+    //         if (sr!=None && sr2!=None && sr.get.start< sr2. get.start) true else false
+    //     }
+    // }
 }
