@@ -9,12 +9,6 @@ import java.util.GregorianCalendar
 
 object GeneralReports {
 
-    //def safe_date_from_str(input:String) : String = {
-    //}
-    
-    //def safe_float(input:String) : Float ={
-    //}
-
     def main(args: Array[String]) {
         val TOPIC = "missmalini"
         val TOPIC_NAME = "MissMalini"
@@ -34,11 +28,9 @@ object GeneralReports {
             .setName("dimLikes")
             .cache()
 
-        val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
+        val iaFbMapB = (dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
-
-        likes.saveAsTextFile("""/home/xiaoluguo/""")
 
         val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
             if (a!=None){
@@ -52,27 +44,12 @@ object GeneralReports {
             }else{
                 false
             }
-
-            // if (input._2._1!=None){
-            //     val sr ="miss".r.findFirstMatchIn(input._2._1.toLowerCase())
-            //     val sr2="malini".r.findFirstMatchIn((input._2._1+input._2._2).toLowerCase())
-            //     if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
-            //         true
-            //     } else {
-            //         false
-            //     }
-            // }else{
-            //     false
-            // }
         }
 
-        val fbEntities = likes.filter(x=>true).collect()
-        // fbEntities.saveAsTextFile("""/home/xiaoluguo/"""+ENTITY_FILE)
+        val fbEntities = likes.filter(x=>safe_match(x._2._1,x._2._2)).collect()
         val fp = new PrintWriter(new File(ENTITY_FILE))
         fp.write(fbEntities.mkString(""))
         fp.close()
-    
-        // ENTITY_FILE STUFF
 
         //val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
 
@@ -285,13 +262,5 @@ object GeneralReports {
             .distinct()
             .setName("people_genders")
             .cache()
-
     }
-    // def safe_match(input:String){
-    //     if (input(1)(0)!=None){
-    //         sr ="miss".r.findFirstMatchIn(input(1)(0).toLowerCase())
-    //         sr2="malini".r.findFirstMatchIn((input(1)(0)+input(1)(1)).toLowerCase())
-    //         if (sr!=None && sr2!=None && sr.get.start< sr2. get.start) true else false
-    //     }
-    // }
 }
