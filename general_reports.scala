@@ -9,24 +9,6 @@ import java.util.GregorianCalendar
 
 object GeneralReports {
 
-    //def safe_date_from_str(input:String) : String = {
-    //}
-    
-    //def safe_float(input:String) : Float ={
-    //}
-
-<<<<<<< HEAD
-    // conf = SparkConf()
-    // conf.setAppName("YOUR APP NAME HERE")
-    // conf.setMaster("spark://compute-master:7077")
-    // conf.set("spark.cores.max", "4")
-    // conf.set("spark.shuffle.consolidateFiles", "true")
-    // conf.set("spark.default.parallelism", "100")
-    // conf.set("spark.executor.memory", "20g")
-        
-    // sc = SparkContext(conf=conf)
-=======
->>>>>>> 86a0bafdb18b74831e252d64ee76d6d1cfab383c
     def main(args: Array[String]) {
         val TOPIC = "missmalini"
         val TOPIC_NAME = "MissMalini"
@@ -46,13 +28,10 @@ object GeneralReports {
             .setName("dimLikes")
             .cache()
 
-        val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
+        val iaFbMapB = (dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
-<<<<<<< HEAD
         
-        likes.saveAsTextFile("""/home/xiaoluguo/""")
-
         val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
             if (a!=None){
                 val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
@@ -65,29 +44,12 @@ object GeneralReports {
             }else{
                 false
             }
-
-            // if (input._2._1!=None){
-            //     val sr ="miss".r.findFirstMatchIn(input._2._1.toLowerCase())
-            //     val sr2="malini".r.findFirstMatchIn((input._2._1+input._2._2).toLowerCase())
-            //     if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
-            //         true
-            //     } else {
-            //         false
-            //     }
-            // }else{
-            //     false
-            // }
         }
 
-        val fbEntities = likes.filter(x=>true).collect()
-        // fbEntities.saveAsTextFile("""/home/xiaoluguo/"""+ENTITY_FILE)
+        val fbEntities = likes.filter(x=>safe_match(x)).collect()
         val fp = new PrintWriter(new File(ENTITY_FILE))
         fp.write(fbEntities.mkString(""))
         fp.close()
-=======
-    
-        // ENTITY_FILE STUFF
->>>>>>> 86a0bafdb18b74831e252d64ee76d6d1cfab383c
 
         //val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
 
@@ -301,11 +263,4 @@ object GeneralReports {
           .setName("people_genders")
           .cache()
     }
-    // def safe_match(input:String){
-    //     if (input(1)(0)!=None){
-    //         sr ="miss".r.findFirstMatchIn(input(1)(0).toLowerCase())
-    //         sr2="malini".r.findFirstMatchIn((input(1)(0)+input(1)(1)).toLowerCase())
-    //         if (sr!=None && sr2!=None && sr.get.start< sr2. get.start) true else false
-    //     }
-    // }
-}
+    
