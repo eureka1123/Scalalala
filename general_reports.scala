@@ -343,5 +343,26 @@ object GeneralReports {
             likeTopicSum = sc.textFile("hdfs://hadoopmaster:9000/" + TOPIC + "/like_topic_sum").map(eval)
         }
 
+        //(like ID, number of likes for that ID) (for big+topic likes)
+        val likeTopicCount = likeTopicFractions.map(x => (x._1, 1)).reduceByKey((x,y) => (x+y)).cache()
+
+        //This is actually not just the strength normalized by count; it's also multiplied by an exponentiation (<1.0) of the count, so that more objectively popular things are weighted higher. Without this multiplication, we'd divide by x[1][1], by dividing by something less than that we're multiplying by the corresponding value. E.g., dividing by x[1][1]**0.7, we're weighting by popularity**0.3.
+        //(like ID, topic-predictive power for that like ID)
+        val likeTopicImplications = likeTopicSum.join(likeTopicCount).map(x => (x._1, x._2._1 / x._2._2**0.7)).cache()
+
+        //(like ID, (predictive power, (like name, like type))
+        val sortedLikeTopicImplications = likeTopicImplications 
+          .join(topicAndBigLikes) 
+          .sortBy(x => x._2._1, False, SLICES) 
+          .cache()
+
+        // val sortedOfftopicImplications = sortedLikeTopicImplications 
+        //     .filter(x => x._1 not in topicLikesB.value) 
+        //     .cache()
+
+        //Make a file with the top 5000 putatively off-topic entities, for manual fixing
+        // ot_file = codecs.open(TOPIC + "_top_offtopics.txt", "w", "utf-8")
+        // ot_file.write(unicode(sorted_offtopic_implications.take(5000)))
+        // ot_file.close()
     }
 }
