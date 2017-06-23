@@ -61,6 +61,9 @@ object GeneralReports {
         // if (topicLikesB.value.size >= 1000){
         //     manyTopicEntities = True
         // }
+        
+        // // instead of using PrintWriter to write to the file, we can use rdd.saveAsTextFile function to write the RDD and use rdd.textFile function
+
 
         val conf = new Configuration()
         val hdfsCorePath = new Path("core-site.xml")
