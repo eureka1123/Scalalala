@@ -50,20 +50,22 @@ object GeneralReports {
         //     }
         // }
 
-        // val fbEntities = likes.filter(x=>safe_match(x._2._1,x._2._2)).collect()
+        // val fbEntities = likes.filter(x => safe_match(x._2._1,x._2._2)).collect()
+        // fbEntities.saveAsTextFile("path/"+ENTITY_FILE)
+
+        // topicLikes.textFile("path/"+ENTITY_FILE)
+
+        // //human readable file
         // val fp = new PrintWriter(new File(ENTITY_FILE))
         // fp.write(fbEntities.mkString(""))
         // fp.close()
 
-        //val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
+        // val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
         // val manyTopicEntities = False
 
         // if (topicLikesB.value.size >= 1000){
         //     manyTopicEntities = True
-        // }
         
-        // // instead of using PrintWriter to write to the file, we can use rdd.saveAsTextFile function to write the RDD and use rdd.textFile function
-
 
         val conf = new Configuration()
         val hdfsCorePath = new Path("core-site.xml")
