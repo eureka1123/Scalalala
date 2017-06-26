@@ -121,7 +121,8 @@ object GeneralReports {
             .coalesce(SLICES)
             .setName("like_facts")
             .cache()
-                val personTotalLikeCounts = likeFacts.map(x => (x._2._1, 1))
+        
+        val personTotalLikeCounts = likeFacts.map(x => (x._2._1, 1))
             .reduceByKey((x,y) => (x+y))
             .distinct()
             .setName("personalTotalLikeCounts")
@@ -368,3 +369,53 @@ object GeneralReports {
         // ot_file.close()
     }
 }
+
+// //Idea:
+// // build a string from the fb_entities_file
+// // Build string with name and type separated by comma and entries by dash "-" and save it to a file, after that, read from that file
+// import scala.collection.mutable.ListBuffer
+// import scala.collection.mutable.StringBuilder
+
+// object GeneralReports{
+//     def main(args: Array[String]) {
+//         var sampleEntity: Array[(String,(String,String))] = Array(("13270834", ("@missmalini Yay! Mickey & Minnie Mouse hve just arrived at the Disney Jet Set Go event in Mumbai @RanjitAtWork", "Other")), ("65592", ("MissMalini", "Entertainment website")), ("48143266", ("Missmalini Publishing Pvt. Ltd.", "Local business")), ("4014059", ("Miss Malini", "Movie")))
+    
+//         val longString = evalEntity(sampleEntity)
+
+//         println(longString)
+
+//         val arrayAgain = evalString(longString)
+
+//         val rdd = sc.parallelize(arrayAgain)
+
+//         println(rdd.collect())
+
+//     }
+
+//     def evalEntity(fb_entities_file :Array[(String,(String, String))]): String = {
+
+//         val B = new StringBuilder
+
+//         for(entry <- fb_entities_file) {
+//             B ++= entry._1 + ","
+//             B ++= entry._2._1 + "," + entry._2._2 + "--"
+//         }
+//         val resultString = B.toString
+
+//         return resultString
+//     }
+
+//     def evalString(longString :String): ListBuffer[(String, (String, String))] = {
+
+//         val res : ListBuffer[(String, (String, String))] = ListBuffer()
+
+//         val splitString = longString.split("--")
+
+//         for (entry <- splitString){
+//             val internalSplit = entry.split(",")
+//             res += ((internalSplit(0),(internalSplit(1),internalSplit(2))))
+//         }
+
+//         return res
+//     }
+// }
