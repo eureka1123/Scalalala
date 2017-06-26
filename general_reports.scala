@@ -13,15 +13,15 @@ import org.apache.commons.lang3.text.WordUtils
 object GeneralReports {
 
     def main(args: Array[String]) {
-        val conf = SparkConf()
-        conf.setAppName("YOUR APP NAME HERE")
-        conf.setMaster("spark://compute-master:7077")
-        conf.set("spark.cores.max", "52")
-        conf.set("spark.shuffle.consolidateFiles", "true")
-        conf.set("spark.default.parallelism", "100")
-        conf.set("spark.executor.memory", "20g")
+        // val conf = SparkConf()
+        // conf.setAppName("YOUR APP NAME HERE")
+        // conf.setMaster("spark://compute-master:7077")
+        // conf.set("spark.cores.max", "52")
+        // conf.set("spark.shuffle.consolidateFiles", "true")
+        // conf.set("spark.default.parallelism", "100")
+        // conf.set("spark.executor.memory", "20g")
             
-        val sc = SparkContext(conf=conf)
+        // val sc = SparkContext(conf=conf)
 
         val TOPIC = "missmalini"
         val TOPIC_NAME = "MissMalini"
