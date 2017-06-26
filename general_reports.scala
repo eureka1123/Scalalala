@@ -1,5 +1,5 @@
 import scala.util.matching.Regex
-import java.io._
+import java.io.FileSystem
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import org.apache.spark.SparkConf
@@ -13,6 +13,16 @@ import org.apache.commons.lang3.text.WordUtils
 object GeneralReports {
 
     def main(args: Array[String]) {
+        val conf = SparkConf()
+        conf.setAppName("YOUR APP NAME HERE")
+        conf.setMaster("spark://compute-master:7077")
+        conf.set("spark.cores.max", "4")
+        conf.set("spark.shuffle.consolidateFiles", "true")
+        conf.set("spark.default.parallelism", "100")
+        conf.set("spark.executor.memory", "20g")
+            
+        val sc = SparkContext(conf=conf)
+
         val TOPIC = "missmalini"
         val TOPIC_NAME = "MissMalini"
         val REPORT_DIR = "/home/xiaoluguo/missmalini/"
@@ -31,7 +41,7 @@ object GeneralReports {
             .setName("dimLikes")
             .cache()
 
-        val iaFbMapB = (dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
+        // val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
 
@@ -288,7 +298,7 @@ object GeneralReports {
             .cache()
 
         def clean_relationships(rel: String) : String = {
-            return WordUtils.capitalize(rel).replaceAll("""\(Pending)\""","") //does not include unicode, may need to be fixed
+            WordUtils.capitalize(rel).replaceAll("""\(Pending)\""","") //does not include unicode, may need to be fixed
         }
 
         //(person ID, relationship status)
@@ -329,9 +339,9 @@ object GeneralReports {
             likeTopicFractions = bigLikeFacts.join(personTopicProportions)
                 .map(x => (x._2._1, x._2._2))
                 .cache()
-            likeTopicFractions.saveAsTextFile("hdfs://hadoopmaster:9000/" + TOPIC + "/like_topic_fractions")
+            likeTopicFractions.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions")
         } else{
-            like_topic_fractions = sc.textFile("hdfs://hadoopmaster:9000/" + TOPIC + "/like_topic_fractions").map(eval).cache()) //fix eval
+            like_topic_fractions = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions").map(eval).cache()) //fix eval
         } 
 
         pathBigLikes = new Path("/" + TOPIC + "like_topic_sum")
@@ -341,9 +351,9 @@ object GeneralReports {
 
         if(!fileExists) {
             likeTopicSum = likeTopicFractions.reduceByKey((x,y) => (x+y)).cache() //This should give a measure of popularity of things, weighted by how big a topic fan each liker is. Normalizing it by count, as done below, gives a measure of strength of implication.
-            likeTopicSum.saveAsTextFile("hdfs://hadoopmaster:9000/" + TOPIC + "/like_topic_sum")
+            likeTopicSum.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum")
         } else{
-            likeTopicSum = sc.textFile("hdfs://hadoopmaster:9000/" + TOPIC + "/like_topic_sum").map(eval)
+            likeTopicSum = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum").map(eval)
         }
 
         //(like ID, number of likes for that ID) (for big+topic likes)
