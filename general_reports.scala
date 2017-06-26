@@ -16,7 +16,7 @@ object GeneralReports {
         val conf = SparkConf()
         conf.setAppName("YOUR APP NAME HERE")
         conf.setMaster("spark://compute-master:7077")
-        conf.set("spark.cores.max", "4")
+        conf.set("spark.cores.max", "52")
         conf.set("spark.shuffle.consolidateFiles", "true")
         conf.set("spark.default.parallelism", "100")
         conf.set("spark.executor.memory", "20g")
@@ -111,7 +111,6 @@ object GeneralReports {
             .map(x => (x(0),x(6)))
             .distinct()
             .setName("any_india_locations")
-            .cache()
         
         val indiaPeople = locationFacts.join(anyIndiaLocations)
             .map(x=> (x._2._1, x._2._2))
@@ -328,6 +327,7 @@ object GeneralReports {
         val bigLikeFacts = bigLikes.map(x => (x,1))
             .join(targetedLikeFacts)
             .map(x => (x._2._2, x._1))
+            .cache()
 
         pathBigLikes = new Path("/" + TOPIC + "like_topic_fractions")
         fileExists = fileSystem.exists(pathBigLikes)
