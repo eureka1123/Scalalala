@@ -1,5 +1,5 @@
 import scala.util.matching.Regex
-import java.io.FileSystem
+import java.io._
 import org.apache.spark.SparkContext
 import org.apache.spark.SparkContext._
 import org.apache.spark.SparkConf
@@ -8,6 +8,7 @@ import java.util.Calendar
 import java.util.GregorianCalendar
 import org.apache.hadoop.conf._
 import org.apache.hadoop.fs._
+import org.apache.hadoop.fs.{FileSystem => FileSystemHadoop}
 import org.apache.commons.lang3.text.WordUtils
 
 object GeneralReports {
@@ -82,7 +83,7 @@ object GeneralReports {
         val hdfsHDFSPath = new Path("hdfs-site.xml")
         conf.addResource(hdfsCorePath)
         conf.addResource(hdfsHDFSPath)
-        val fileSystem = FileSystem.get(conf)
+        val fileSystem = FileSystemHadoop.get(conf)
         val path = new Path("/"+TOPIC)
         fileSystem.mkdirs(path) 
 
