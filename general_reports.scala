@@ -10,6 +10,7 @@ import org.apache.hadoop.conf._
 import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.{FileSystem => FileSystemHadoop}
 import org.apache.commons.lang3.text.WordUtils
+import org.apache.spark.storage.StorageLevel._
 
 object GeneralReports {
 
@@ -42,7 +43,7 @@ object GeneralReports {
             .setName("dimLikes")
             .cache()
 
-        // val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
+        val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
 
