@@ -454,10 +454,90 @@ val edgeNonfans = personRelevantLikeCounts
 //(person_ID, 1) for edge_nonfans
 val edgeKv = edgeNonfans.map(x => (x,1)).cache()
 
+//Takes an RDD of elements like (person_id, factor_value) and returns fandom sums for each factor value
+def fandom_sums_by_factor(factorRdd: RDD[String]): RDD[String] = {
+  dict(personTopicProportions 
+    .join(factorRdd) 
+    .map(x => (x._2._2, x._2._1)) 
+    .reduceByKey((x,y)=>(x+y)) 
+    .collect())
+}
 
+//for each factor, the number of topic fans
+def fan_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
+  dict(personTopicLikeCounts
+    .join(factorRdd) 
+    .map(x => (x._2._2, 1)) 
+    .reduceByKey((x,y)=>(x+y)) 
+    .collect())
+}
 
+//for each factor, the number of edge people
+def edge_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
+  dict(edgeKv
+    .join(factorRdd) 
+    .map(x => (x._2._2, 1)) 
+    .reduceByKey((x,y)=>(x+y)) 
+    .collect())
+}
 
+//for each factor, the number of total people
+def person_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
+  dict(personTotalLikeCounts
+    .join(factorRdd) 
+    .map(x => (x._2._2, 1)) 
+    .reduceByKey((x,y)=>(x+y)) 
+    .collect())
+}
 
+//for each factor, the total number of topic likes
+def fan_like_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
+  dict(personTopicLikeCounts
+    .join(factorRdd)
+    .map(x => (x._2._2, x._2._1)) 
+    .reduceByKey((x,y)=>(x+y)) 
+    .collect())
+}
+
+// #doesn't make sense - I must have thought this was looking at total like count or something
+// def edge_like_counts_by_factor(factor_rdd):
+//   return dict(person_topic_like_counts \
+//     .join(edge_kv) \
+//     .mapValues(lambda x: x[0]) \
+//     .join(factor_rdd) \
+//     .map(lambda x: (x[1][1], x[1][0])) \
+//     .reduceByKey(add) \
+//     .collect())
+
+// //for each factor, the mean number of topic likes per person
+// def mean_fan_like_counts_by_factor(factorRdd: RDD[String]):
+//   val flcbf = fan_like_counts_by_factor(factorRdd)
+//   val fcbf = fan_counts_by_factor(factorRdd)
+//   return [(x, float(flcbf[x])/fcbf[x]) for x in fcbf if x in flcbf]
+
+// // #doesn't make sense - I must have thought this was looking at total like count or something
+// // def mean_edge_like_counts_by_factor(factor_rdd):
+// //   elcbf = edge_like_counts_by_factor(factor_rdd)
+// //   ecbf = edge_counts_by_factor(factor_rdd)
+// //   return [(x, float(elcbf[x])/ecbf[x]) for x in ecbf if x in elcbf]
+
+// //for each factor, the fraction of total population that is a fan
+// def fan_concentration_by_factor(factor_rdd):
+//   fcbf = fan_counts_by_factor(factor_rdd)
+//   pcbf = person_counts_by_factor(factor_rdd)
+//   return [(x, 100.0*fcbf[x]/pcbf[x]) for x in fcbf if x in pcbf]
+
+// //for each factor, the fraction of total population that is an edge case
+// def edge_concentration_by_factor(factor_rdd):
+//   ecbf = edge_counts_by_factor(factor_rdd)
+//   pcbf = person_counts_by_factor(factor_rdd)
+//   return [(x, 100.0*ecbf[x]/pcbf[x]) for x in ecbf if x in pcbf]
+
+// //for each factor, the mean fandom across fans at that factor level
+// def fandom_by_factor(factor_rdd):
+//   fsbf = fandom_sums_by_factor(factor_rdd)
+//   fcbf = fan_counts_by_factor(factor_rdd)
+//   return [(x, 100.0*fsbf[x]/fcbf[x]) for x in fsbf if x in fcbf]
 
 
 
