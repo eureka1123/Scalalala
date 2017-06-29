@@ -120,7 +120,7 @@ object GeneralReports {
             .cache()
         
         val indiaPeopleStates = locationFacts.join(indiaLocations)
-            .map(x => ((x._2)._1, (x._2)._2))
+            .map(x => (x._2._1, x._2._2))
             .distinct()
             .cache()
 
@@ -371,7 +371,7 @@ object GeneralReports {
           .cache()
 
         // val sortedOfftopicImplications = sortedLikeTopicImplications 
-        //     .filter(x => x._1 not in topicLikesB.value) 
+        //     .filter(x => !(topicLikesB.value.contains(x._1)))    
         //     .cache()
 
         //Make a file with the top 5000 putatively off-topic entities, for manual fixing
@@ -430,3 +430,51 @@ object GeneralReports {
 //         return res
 //     }
 // }
+
+sortedLikeTopicImplications.saveAsTextFile("hdfs://compute-master:9000/" + TOPIC + "/like_topic_implications")
+
+//just the like_IDs for the top 200 off-topic predictors
+val topOffTopicsB = sc.broadcast((sortedOfftopicImplications.keys().take(200)).toSet)
+
+val edgeLikeFacts = targetedLikeFacts.filter(x => topOffTopicsB.contains(x(0)))
+
+val edgeLikers = edgeLikeFacts
+    .values()
+    .distinct()
+
+val fanIDs = personTopicLikeCounts.keys()
+
+//person_IDs who like top off-topic predictors but not any on-topic predictors
+val edgeNonfans = personRelevantLikeCounts
+    .keys()
+    .substract(fanIDs)
+    .intersection(edgeLikers)
+    .cache()
+
+//(person_ID, 1) for edge_nonfans
+val edgeKv = edgeNonfans.map(x => (x,1)).cache()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
