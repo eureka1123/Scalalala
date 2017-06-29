@@ -130,7 +130,8 @@ object GeneralReports {
             .distinct()
             .coalesce(SLICES)
             .setName("like_facts")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
+            //.cache()
         
         val personTotalLikeCounts = likeFacts.map(x => (x._2._1, 1))
             .reduceByKey((x,y) => (x+y))
@@ -510,10 +511,10 @@ def fan_like_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
 //     .collect())
 
 // //for each factor, the mean number of topic likes per person
-// def mean_fan_like_counts_by_factor(factorRdd: RDD[String]):
+// def mean_fan_like_counts_by_factor(factorRdd: RDD[String]): Array((Int,Float))
 //   val flcbf = fan_like_counts_by_factor(factorRdd)
 //   val fcbf = fan_counts_by_factor(factorRdd)
-//   return [(x, float(flcbf[x])/fcbf[x]) for x in fcbf if x in flcbf]
+//   [(x, float(flcbf[x])/fcbf[x]) for x in fcbf if x in flcbf]
 
 // // #doesn't make sense - I must have thought this was looking at total like count or something
 // // def mean_edge_like_counts_by_factor(factor_rdd):
