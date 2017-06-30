@@ -43,7 +43,7 @@ object GeneralReports {
             .setName("dimLikes")
             .cache()
 
-        val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
+        // val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
 
@@ -140,7 +140,7 @@ object GeneralReports {
             .setName("personalTotalLikeCounts")
             .cache()
 
-        personTotalLikeCounts.count()
+        println(personTotalLikeCounts.count())
 
         var pathBigLikes = new Path("/" + TOPIC + "big_likes")
         var fileExists = fileSystem.exists(pathBigLikes)
@@ -157,11 +157,21 @@ object GeneralReports {
                 .setName("bigLikes")
                 .cache()
 
-            bigLikes.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
+            try{
+                bigLikes.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
+            }
+            catch{
+                case e: FileAlreadyExistsException => println("Already Exists")
+            }
         } else {
-            bigLikes = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
-                .setName("bigLikes")
-                .cache()
+            try{
+                bigLikes = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
+                    .setName("bigLikes")
+                    .cache()
+            }
+            catch{
+                case e: FileAlreadyExistsException => println("Already Exists")
+            }
         }
 
         val topicLikesData = Array(("1",2),("3",4)) //placeholder
