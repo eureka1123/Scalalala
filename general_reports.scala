@@ -11,6 +11,9 @@ import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.{FileSystem => FileSystemHadoop}
 import org.apache.commons.lang3.text.WordUtils
 import org.apache.spark.storage.StorageLevel._
+import scala.io.Source
+import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.StringBuilder
 
 object GeneralReports {
 
@@ -48,35 +51,69 @@ object GeneralReports {
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
 
         // THIS IS OLD, BUT CAN HELP FIND ENTITIES
-        // val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
-        //     if (a!=None){
-        //         val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
-        //         val sr2="malini".r.findFirstMatchIn((a+b).toLowerCase())
-        //         if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
-        //             true
-        //         } else {
-        //             false
-        //         }
-        //     }else{
-        //         false
-        //     }
-        // }
+        def evalEntity(fb_entities_file :Array[(String,(String, String))]): String = {
 
-        // val fbEntities = likes.filter(x => safe_match(x._2._1,x._2._2)).collect()
-        // fbEntities.saveAsTextFile("path/"+ENTITY_FILE)
+            val B = new StringBuilder
 
-        // topicLikes.textFile("path/"+ENTITY_FILE)
+            for(entry <- fb_entities_file) {
+                B ++= entry._1 + ","
+                B ++= entry._2._1 + "," + entry._2._2 + "--"
+            }
 
-        // //human readable file
-        // val fp = new PrintWriter(new File(ENTITY_FILE))
-        // fp.write(fbEntities.mkString(""))
-        // fp.close()
+            B.deleteCharAt(B.length-1)
+            val resultString = B.toString
 
-        // val topicLikesB = sc.broadcast(topicLikes.map(x => x(0)).collect().toSet)
-        // val manyTopicEntities = False
+            return resultString
+        }
 
-        // if (topicLikesB.value.size >= 1000){
-        //     manyTopicEntities = True
+        def evalString(longString :String): ListBuffer[(String, (String, String))] = {
+
+            val res : ListBuffer[(String, (String, String))] = ListBuffer()
+
+            val splitString = longString.split("--")
+
+            for (entry <- splitString){
+                val internalSplit = entry.split(",")
+                res += ((internalSplit(0),(internalSplit(1),internalSplit(2))))
+            }
+
+            return res
+        }
+
+        val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
+            if (a!=None){
+                val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
+                val sr2="malini".r.findFirstMatchIn((a+b).toLowerCase())
+                if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
+                    true
+                } else {
+                    false
+                }
+            }else{
+                false
+            }
+        }
+
+        val fbEntities = likes.filter(x => safe_match(x._2._1,x._2._2)).collect()
+
+        val fbEntitiesString = evalEntity(fbEntities)
+
+        //human readable file
+        val fp = new PrintWriter(new File(ENTITY_FILE))
+        fp.write(fbEntitiesString)
+        fp.close()
+
+        val topicLikesString = Source.fromFile(ENTITY_FILE).mkString
+
+        val topicLikes = sc.parallelize(evalString(topicLikesString).toList)
+
+        val topicLikesB = sc.broadcast(topicLikes.map(x => x._1).collect().toSet)
+
+        var manyTopicEntities = false
+
+        if (topicLikesB.value.size >= 1000){
+            manyTopicEntities = true
+        }
         
 
         val conf = new Configuration()
@@ -142,7 +179,7 @@ object GeneralReports {
 
         println(personTotalLikeCounts.count())
 
-        var pathBigLikes = new Path("/" + TOPIC + "big_likes")
+        var pathBigLikes = new Path("/" + TOPIC + "/big_likes")
         var fileExists = fileSystem.exists(pathBigLikes)
 
         var data = Array("1","2")
@@ -155,27 +192,16 @@ object GeneralReports {
                 .map(x => x._1)
                 .coalesce(SLICES)
                 .setName("bigLikes")
-                .cache()
-
-            try{
-                bigLikes.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
-            }
-            catch{
-                case e: FileAlreadyExistsException => println("Already Exists")
-            }
+                .persist(MEMORY_ONLY_SER)
+            bigLikes.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
         } else {
-            try{
-                bigLikes = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
-                    .setName("bigLikes")
-                    .cache()
-            }
-            catch{
-                case e: FileAlreadyExistsException => println("Already Exists")
-            }
+            bigLikes = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
+                .setName("bigLikes")
+                .cache()
         }
 
-        val topicLikesData = Array(("1",2),("3",4)) //placeholder
-        val topicLikes = sc.parallelize(topicLikesData)
+        // val topicLikesData = Array(("1",2),("3",4)) //placeholder
+        // val topicLikes = sc.parallelize(topicLikesData)
 
         //(like_ID, (name, type))
         val topicAndBigLikes = topicLikes
@@ -193,8 +219,8 @@ object GeneralReports {
         val targetedLikeFacts = likeFacts //#(fact_ID, (person_ID, like_ID))
             .map(x => (x._2._2, x._2._1))
             .setName("targetedLikeFacts")
-            .cache()
-        targetedLikeFacts.count()
+            .persist(MEMORY_ONLY_SER)
+        println(targetedLikeFacts.count())
         likeFacts.unpersist()
 
         //(person_ID, number_of_topic_and_big_likes) for people who like something big and/or topic
@@ -239,65 +265,65 @@ object GeneralReports {
             .join(indiaPeople)
             .mapValues(x => x._1)
             .setName("people")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
-        def safe_date_from_str(input : String) : Option[Calendar] = {
+        val safe_date_from_str: ((String, Array[String])) => (String, Option[Calendar]) = (a:((String, Array[String]))) =>{
             val reg = """\d\d/\d\d/\d\d\d\d""".r
-            var allMatch : Array[String] = reg.findAllIn(input).toArray
+            var allMatch : Array[String] = reg.findAllIn(a._2(4)).toArray
             if (allMatch.length == 1) {
                 var dateOB : Date = new Date(allMatch(0))
 
                 var cal : Calendar = new GregorianCalendar()
                 cal.setTime(dateOB)
 
-                return Some(cal)
+                (a._1, Some(cal))
 
             } else {
-                return None
+                (a._1, None)
             }
         }
-
-        def getAge( date : Option[Calendar]) : Double = {
+        val getAge: ((String, Option[Calendar])) => (String, Double) = (a:((String, Option[Calendar]))) => {
             var age: Double =0.0
             val milliInYear: Double =31557600000.0
-            
+            var str = a._1
+            var date = a._2
             val today : Calendar = Calendar.getInstance()
             date match {
                 case Some(date) => age= (today.getTime().getTime() - date.getTime().getTime())/milliInYear
                 case None => val age= -1
             }
 
-            return age
+            (str,age)
         }
 
         //(person_ID, java calendar structure of birthday) - not actually age yet!
-        val peopleBirthdays = people
-            .filter(x => x._2(5) != "null")
-            .map(x => (x._1, safe_date_from_str(x._2(5))))
-            .filter(x => x._2.getClass.getSimpleName != None.getClass.getSimpleName)
+        var peopleBirthdays = people
+            .filter(x => x._2(4) != "null")
+            .map(safe_date_from_str)
+            .filter(x => (x._2.getClass.getSimpleName != None.getClass.getSimpleName))
             .coalesce(SLICES)
             .setName("people_birthdays")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
     
         //(person_ID, age in years)
         
         val peopleAges = peopleBirthdays
-          .map(x => (x._1, getAge(x._2)))
+          .map(getAge)
           .coalesce(SLICES)
           .setName("people_ages")
           .cache()
 
-        def get_ageband(x: Double) : String = {
-            if (x < 18) { return "Under 18" }
-            if (x < 25) { return "18-24" }
-            if (x < 35) { return "25-34" }
-            if (x < 45) { return "35-44" }
-            if (x < 55) { return "45-54" }
-            return "55+"
+        val get_ageband: ((String, Double)) => (String,String) = (a:((String, Double))) => {
+            if (a._2 < 18) { (a._1, "Under 18") }
+            if (a._2 < 25) { (a._1, "18-24") }
+            if (a._2 < 35) { (a._1, "25-34") }
+            if (a._2 < 45) { (a._1, "35-44") }
+            if (a._2 < 55) { (a._1, "45-54") }
+            (a._1, "55+")
         }
 
         val peopleAgebands = peopleAges
-            .map(x => (x._1, get_ageband(x._2)))
+            .map(get_ageband)
             .cache()
         
         //(person ID, gender)
@@ -309,8 +335,8 @@ object GeneralReports {
             .setName("people_genders")
             .cache()
 
-        def clean_relationships(rel: String) : String = {
-            WordUtils.capitalize(rel).replaceAll("""\(Pending)\""","") //does not include unicode, may need to be fixed
+        val clean_relationships: ((String, String)) => ((String, String)) = (rel:((String, String))) => {
+            (rel._1, WordUtils.capitalize(rel._2).replaceAll("""\(Pending)\""","")) //does not include unicode, may need to be fixed
         }
 
         //(person ID, relationship status)
@@ -320,7 +346,7 @@ object GeneralReports {
             .filter(x => x._2(7) != "null" && !(x._2(7)(0).isDigit))
             .map(x => (x._1, x._2(7)))
             .coalesce(SLICES)
-            .map(x => (x._1, clean_relationships(x._2)))
+            .map(clean_relationships)
             .distinct()
             .setName("people_relationships")
             .cache()
@@ -342,10 +368,11 @@ object GeneralReports {
             .map(x => (x._2._2, x._1))
             .cache()
 
-        pathBigLikes = new Path("/" + TOPIC + "like_topic_fractions")
+        pathBigLikes = new Path("/" + TOPIC + "/like_topic_fractions")
         fileExists = fileSystem.exists(pathBigLikes)
-
-        var likeTopicFractions = sc.parallelize(data)
+        
+        var data1 = Array(("1",2.0),("2",2.0))
+        var likeTopicFractions = sc.parallelize(data1)
 
         if (!fileExists) {
             //(like_ID, topic_like_proportion) for each person who likes like_ID (for big+topic likes)
@@ -354,10 +381,10 @@ object GeneralReports {
                 .cache()
             likeTopicFractions.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions")
         } else{
-            like_topic_fractions = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions").map(eval).cache()) //fix eval
+            likeTopicFractions = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions").cache()//.map(eval).cache()) //fix eval
         } 
 
-        pathBigLikes = new Path("/" + TOPIC + "like_topic_sum")
+        pathBigLikes = new Path("/" + TOPIC + "/like_topic_sum")
         fileExists = fileSystem.exists(pathBigLikes)
 
         var likeTopicSum = sc.parallelize(data)
@@ -366,7 +393,7 @@ object GeneralReports {
             likeTopicSum = likeTopicFractions.reduceByKey((x,y) => (x+y)).cache() //This should give a measure of popularity of things, weighted by how big a topic fan each liker is. Normalizing it by count, as done below, gives a measure of strength of implication.
             likeTopicSum.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum")
         } else{
-            likeTopicSum = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum").map(eval)
+            likeTopicSum = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum")
         }
 
         //(like ID, number of likes for that ID) (for big+topic likes)
