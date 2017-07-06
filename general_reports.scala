@@ -539,10 +539,20 @@ def fan_like_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
 //   return [(x, 100.0*fsbf[x]/fcbf[x]) for x in fsbf if x in fcbf]
 
 
+val facebook_people = Array("Actor/director", "Artist", "Athlete", "Author", "Blogger", "Business person", "Chef", "Coach", "Dancer", "Designer", "Doctor", "Entertainer", "Entrepreneur", "Government official", "Journalist", "Lawyer", "Literary editor", "Monarch", "Musician/band", "News personality", "Personal blog", "Personal website", "Photographer", "Politician", "Producer", "Public figure", "Publisher", "Teacher", "Writer")
+facebook_people_b = sc.broadcast(facebook_people.toSet)
 
 
+val facebook_music = Array("Album", "Arts/entertainment/nightlife", "Concert tour", "Concert venue", "Music", "Music award", "Music chart", "Music video", "Musical genre", "Musical instrument", "Musician/band", "Radio station", "Record label", "Song")
+facebook_music_b = sc.broadcast(facebook_music.toSet)
 
 
+val facebook_new_media = Array("App", "App page", "Blogger", "Business/economy website", "Computers/internet website", "Education website", "Entertainment website", "Government website", "Health/wellness website", "Home/garden website", "Internet/software", "News/media website", "Personal blog", "Personal website", "Recreation/sports website", "Reference website", "Regional website", "Science website", "Society/culture website", "Teens/kids website", "Video game", "Website")
+facebook_new_media_b = sc.broadcast(facebook_new_media.toSet)
+
+
+val facebook_old_media = Array("Article", "Author", "Book", "Book genre", "Book series", "Book store", "Entertainer", "Journalist", "Magazine", "Media/news/publishing", "Movie", "Movie character", "Movie general", "Movie genre", "Movie theater", "Museum/art gallery", "News personality", "Newspaper", "One-time tv program", "Performance art", "Photographer", "Publisher", "Radio station", "Record label", "Tv", "Tv channel", "Tv genre", "Tv network", "Tv season", "Tv show", "Tv/movie award")
+facebook_old_media_b = sc.broadcast(facebook_old_media.toSet)
 
 
 
