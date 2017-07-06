@@ -44,7 +44,7 @@ object GeneralReports {
         val dimLikes = sc.textFile(DATA_ROOT+"/dim_like", SLICES).map(x => x.split("""\t"""))
             .filter(x => (x.length > 3))
             .setName("dimLikes")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         // val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
@@ -135,7 +135,7 @@ object GeneralReports {
             .map(x => (x(2), x(1)))
             .distinct()
             .setName("location_facts")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         val indiaLocations = sc.textFile(DATA_ROOT+ "/dim_location", SLICES).map(x => x.split("""\t"""))
             .filter(x => x.size > 7)
@@ -155,12 +155,12 @@ object GeneralReports {
             .map(x=> (x._2._1, x._2._2))
             .setName("india_people")
             .distinct()
-            .cache()
+            .persist(MEMORY_ONLY_SER)
         
         val indiaPeopleStates = locationFacts.join(indiaLocations)
             .map(x => (x._2._1, x._2._2))
             .distinct()
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         likeFacts = likeFacts.map(x => (x._2._1, (x._1, x._2._2)))
             .join(indiaPeople)
@@ -169,13 +169,13 @@ object GeneralReports {
             .coalesce(SLICES)
             .setName("like_facts")
             .persist(MEMORY_ONLY_SER)
-            //.cache()
+            //.persist(MEMORY_ONLY_SER)
         
         val personTotalLikeCounts = likeFacts.map(x => (x._2._1, 1))
             .reduceByKey((x,y) => (x+y))
             .distinct()
             .setName("personalTotalLikeCounts")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         println(personTotalLikeCounts.count())
 
@@ -197,7 +197,7 @@ object GeneralReports {
         } else {
             bigLikes = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/big_likes")
                 .setName("bigLikes")
-                .cache()
+                .persist(MEMORY_ONLY_SER)
         }
 
         // val topicLikesData = Array(("1",2),("3",4)) //placeholder
@@ -213,7 +213,7 @@ object GeneralReports {
             .distinct()
             .coalesce(SLICES)
             .setName("topic_and_big_likes")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         //(like_ID, user_ID)
         val targetedLikeFacts = likeFacts //#(fact_ID, (person_ID, like_ID))
@@ -231,7 +231,7 @@ object GeneralReports {
             .distinct()
             .coalesce(SLICES)
             .setName("personRelevantLikeCounts")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         //(like_ID, (1, user_ID)) for like_IDs in topic
         val topicLikeFacts = topicLikes
@@ -239,7 +239,7 @@ object GeneralReports {
             .join(targetedLikeFacts)
             .distinct()
             .setName("topicLikeFacts")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         //(person_ID, number_of_topic_likes) for people who like something in topic
         val personTopicLikeCounts = topicLikeFacts
@@ -247,7 +247,7 @@ object GeneralReports {
             .reduceByKey((x,y) => (x+y))
             .distinct()
             .setName("personTopicLikeCounts")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         //(person_ID, fraction of likes that are topic-related)
         val personTopicProportions = personRelevantLikeCounts
@@ -255,7 +255,7 @@ object GeneralReports {
             .map(x => (x._1, if (x._2._2.getClass.getSimpleName == None.getClass.getSimpleName) { 0.0 } else {x._2._2.get.toFloat/x._2._1}))
             .distinct()
             .setName("personTopicProportions")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
     
         // This part is dealing with new data person_info
         //Lots of info, for people in India
@@ -311,7 +311,7 @@ object GeneralReports {
           .map(getAge)
           .coalesce(SLICES)
           .setName("people_ages")
-          .cache()
+          .persist(MEMORY_ONLY_SER)
 
         val get_ageband: ((String, Double)) => (String,String) = (a:((String, Double))) => {
             if (a._2 < 18) { (a._1, "Under 18") }
@@ -324,7 +324,7 @@ object GeneralReports {
 
         val peopleAgebands = peopleAges
             .map(get_ageband)
-            .cache()
+            .persist(MEMORY_ONLY_SER)
         
         //(person ID, gender)
         val peopleGenders = people
@@ -333,7 +333,7 @@ object GeneralReports {
             .coalesce(SLICES)
             .distinct()
             .setName("people_genders")
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         val clean_relationships: ((String, String)) => ((String, String)) = (rel:((String, String))) => {
             (rel._1, WordUtils.capitalize(rel._2).replaceAll("""\(Pending)\""","")) //does not include unicode, may need to be fixed
@@ -349,8 +349,8 @@ object GeneralReports {
             .map(clean_relationships)
             .distinct()
             .setName("people_relationships")
-            .cache()
-        //cache() only used here for debugging, shouldn't be needed?
+            .persist(MEMORY_ONLY_SER)
+        //persist(MEMORY_ONLY_SER) only used here for debugging, shouldn't be needed?
 
         //(person ID, locale (i.e. language/country))
         val peopleLocales = people
@@ -359,14 +359,14 @@ object GeneralReports {
             .coalesce(SLICES)
             .distinct()
             .setName("people_locales")
-            .cache()
-        //cache() only used here for debugging, shouldn't be needed?
+            .persist(MEMORY_ONLY_SER)
+        //persist(MEMORY_ONLY_SER) only used here for debugging, shouldn't be needed?
         
         //(person_ID, like_ID) for all big likes and all people who like them
         val bigLikeFacts = bigLikes.map(x => (x,1))
             .join(targetedLikeFacts)
             .map(x => (x._2._2, x._1))
-            .cache()
+            .persist(MEMORY_ONLY_SER)
 
         pathBigLikes = new Path("/" + TOPIC + "/like_topic_fractions")
         fileExists = fileSystem.exists(pathBigLikes)
@@ -374,44 +374,54 @@ object GeneralReports {
         var data1 = Array(("1",2.0),("2",2.0))
         var likeTopicFractions = sc.parallelize(data1)
 
+        val transform: (String) => (String, Double) = (str: String) =>{
+            val index = str.indexOf("\'")
+            val index2 = str.indexOf("\'", str.indexOf("\'") + 1)
+            var a: String =  str.substring(index+1, index2)
+            var b: Double = str.substring(str.indexOf(" "), str.length-1).toDouble
+            (a,b) 
+        }
+
         if (!fileExists) {
             //(like_ID, topic_like_proportion) for each person who likes like_ID (for big+topic likes)
             likeTopicFractions = bigLikeFacts.join(personTopicProportions)
                 .map(x => (x._2._1, x._2._2))
-                .cache()
+                .persist(MEMORY_ONLY_SER)
             likeTopicFractions.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions")
         } else{
-            likeTopicFractions = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions").cache()//.map(eval).cache()) //fix eval
+            var pre = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions").persist(MEMORY_ONLY_SER)//.map(eval).persist(MEMORY_ONLY_SER)) //fix eval
+            likeTopicFractions = pre.map(transform)
         } 
 
         pathBigLikes = new Path("/" + TOPIC + "/like_topic_sum")
         fileExists = fileSystem.exists(pathBigLikes)
 
-        var likeTopicSum = sc.parallelize(data)
+        var likeTopicSum = sc.parallelize(data1)
 
         if(!fileExists) {
-            likeTopicSum = likeTopicFractions.reduceByKey((x,y) => (x+y)).cache() //This should give a measure of popularity of things, weighted by how big a topic fan each liker is. Normalizing it by count, as done below, gives a measure of strength of implication.
+            likeTopicSum = likeTopicFractions.reduceByKey((x,y) => (x+y)).persist(MEMORY_ONLY_SER) //This should give a measure of popularity of things, weighted by how big a topic fan each liker is. Normalizing it by count, as done below, gives a measure of strength of implication.
             likeTopicSum.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum")
         } else{
-            likeTopicSum = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum")
+            var pre = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum")
+            likeTopicSum = pre.map(transform)
         }
 
         //(like ID, number of likes for that ID) (for big+topic likes)
-        val likeTopicCount = likeTopicFractions.map(x => (x._1, 1)).reduceByKey((x,y) => (x+y)).cache()
+        val likeTopicCount = likeTopicFractions.map(x => (x._1, 1)).reduceByKey((x,y) => (x+y)).persist(MEMORY_ONLY_SER)
 
         //This is actually not just the strength normalized by count; it's also multiplied by an exponentiation (<1.0) of the count, so that more objectively popular things are weighted higher. Without this multiplication, we'd divide by x[1][1], by dividing by something less than that we're multiplying by the corresponding value. E.g., dividing by x[1][1]**0.7, we're weighting by popularity**0.3.
         //(like ID, topic-predictive power for that like ID)
-        val likeTopicImplications = likeTopicSum.join(likeTopicCount).map(x => (x._1, x._2._1 / x._2._2**0.7)).cache()
+        val likeTopicImplications = likeTopicSum.join(likeTopicCount).map(x => (x._1, x._2._1 / scala.math.pow(x._2._2, 0.7))).persist(MEMORY_ONLY_SER)
 
         //(like ID, (predictive power, (like name, like type))
         val sortedLikeTopicImplications = likeTopicImplications 
           .join(topicAndBigLikes) 
-          .sortBy(x => x._2._1, False, SLICES) 
-          .cache()
+          .sortBy(x => x._2._1, false, SLICES) 
+          .persist(MEMORY_ONLY_SER)
 
-        // val sortedOfftopicImplications = sortedLikeTopicImplications 
-        //     .filter(x => !(topicLikesB.value.contains(x._1)))    
-        //     .cache()
+        val sortedOfftopicImplications = sortedLikeTopicImplications 
+            .filter(x => !(topicLikesB.value.contains(x._1)))    
+            .persist(MEMORY_ONLY_SER)
 
         //Make a file with the top 5000 putatively off-topic entities, for manual fixing
         // ot_file = codecs.open(TOPIC + "_top_offtopics.txt", "w", "utf-8")
@@ -488,10 +498,10 @@ val edgeNonfans = personRelevantLikeCounts
     .keys()
     .substract(fanIDs)
     .intersection(edgeLikers)
-    .cache()
+    .persist(MEMORY_ONLY_SER)
 
 //(person_ID, 1) for edge_nonfans
-val edgeKv = edgeNonfans.map(x => (x,1)).cache()
+val edgeKv = edgeNonfans.map(x => (x,1)).persist(MEMORY_ONLY_SER)
 
 //Takes an RDD of elements like (person_id, factor_value) and returns fandom sums for each factor value
 def fandom_sums_by_factor(factorRdd: RDD[String]): RDD[String] = {
