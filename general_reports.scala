@@ -592,5 +592,74 @@ def sorted_names_subset_implications(lowercase_name_subset_b: RDD[String]) = {
     sorted_like_topic_implications.filter(x => lowercase_name_subset_b.value.contains(x._2._2._1.toLowerCase()))
 }
 
+val n_like_topics = topic_likes_b.value.length
 
+if (many_topic_entities){
+    //top 5% of topic likes by like count, rounded down
+    //per discussion on 10/19/15, this should actually be the list of facebook pages that NBA provided us
+    //However, we'd need a good way to match those up to our IDs. I'm sure there is one, but in the 
+    //interest of time I'm putting that off for today.
+    val basic_topic_likes_b = sc.broadcast(likeTopicCount
+        .filter(x=> topic_likes_b.value.contains(x._1))
+        .sortBy(x => x._2, False, SLICES)
+        .map(x=> x._1)
+        .take((n_like_topics * 0.05).toInt).toSet)
+    //top 20% of topic likes by like count, rounded down
+    val common_topic_likes_b = sc.broadcast(like_topic_count
+        .filter(lambda x: x[0] in topic_likes_b.value)
+        .sortBy(lambda x: x[1], False, SLICES)
+        .map(lambda x: x[0])
+        .take(int(n_like_topics * 0.2)).toSet)
+    //calculates avidity score for a like, based on ID
+    def score_avidity(x):
+        if x in basic_topic_likes_b.value:
+            return 1
+        if x in topic_likes_b.value:
+            if x in common_topic_likes_b.value:
+                return 2
+            else:
+                return 4
+        return 0
 
+    def score_avidity(x: String) : Int = {
+        if(basic_topic_likes_b.value.contains(x)){
+            return 1
+        }
+        if(topic_likes_b.value.contains(x)){
+            if(common_topic_likes_b.value.contains(x)){
+                return 2
+            }
+            else {
+                return 4
+            }
+        }
+        return 0
+    }
+
+    //(like_ID, avidity score)
+    topic_avidity_score = topic_and_big_likes
+        .map(x=> (x._1, score_avidity(x._1)))
+
+    //returns an avidity ranking
+    def avidity_ranking(x):
+        if (x >= 6){
+            return "Avid"
+        }
+        if(x >= 3){
+            return "Intermediate"
+        }
+        if(x >= 1){
+            return "Casual"
+        }
+        return "Non-Fan"
+    //(person_ID, avidity ranking)
+    person_avidity_ranking = targeted_like_facts
+        .join(topic_avidity_score)
+        .map(x => (x._2._1, x._2._2))
+        .reduceByKey((x,y) => x+y)
+        .coalesce(SLICES)
+        .map(x =>(x._1, avidity_ranking(x._2)))
+        .setName("person_avidity_ranking")
+        .cache()
+
+}
