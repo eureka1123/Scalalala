@@ -30,10 +30,10 @@ object GeneralReports {
 
         val TOPIC = "missmalini"
         val TOPIC_NAME = "MissMalini"
-        val REPORT_DIR = "/home/xiaoluguo/missmalini/"
+        val REPORT_DIR = "/home/xiaoluguo/missmalini2/"
         val DATA_ROOT = "hdfs://10.142.0.63:9000/data"
         val ARCHIVE_ROOT = "hdfs://10.142.0.63:9000/" + TOPIC
-        val ENTITY_FILE = TOPIC + "_entities.txt"
+        val ENTITY_FILE = TOPIC + "_entities2.txt"
         val SLICES = 2000
 
         var likeFacts = sc.textFile(DATA_ROOT+"/fact_like", SLICES).map(x => x.split("""\t"""))
@@ -51,7 +51,7 @@ object GeneralReports {
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
 
         // THIS IS OLD, BUT CAN HELP FIND ENTITIES
-        def evalEntity(fb_entities_file :Array[(String,(String, String))]): String = {
+        val evalEntity: (Array[(String,(String, String))]) => String = (fb_entities_file :Array[(String,(String, String))]) => {
 
             val B = new StringBuilder
 
@@ -63,10 +63,10 @@ object GeneralReports {
             B.deleteCharAt(B.length-1)
             val resultString = B.toString
 
-            return resultString
+            resultString
         }
 
-        def evalString(longString :String): ListBuffer[(String, (String, String))] = {
+        val evalString: (String) => ListBuffer[(String, (String, String))] = (longString : String) => {
 
             val res : ListBuffer[(String, (String, String))] = ListBuffer()
 
@@ -77,7 +77,7 @@ object GeneralReports {
                 res += ((internalSplit(0),(internalSplit(1),internalSplit(2))))
             }
 
-            return res
+            res
         }
 
         val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
@@ -419,8 +419,22 @@ object GeneralReports {
           .sortBy(x => x._2._1, false, SLICES) 
           .persist(MEMORY_ONLY_SER)
 
+        object Check {
+            def check() = {
+                var topicLikesBValue = scala.collection.mutable.Set[Int]()
+                topicLikesB.value.foreach{
+                    topicLikesBValue += _.toInt
+                }
+                topicLikesBValue
+            }
+        }
+        
+        // val check: ((String, (Double, (String, String)))) => Boolean = (input:((String, (Double, (String, String))))) => {
+        //     !(Check.check.contains(input._1))
+        // }
+
         val sortedOfftopicImplications = sortedLikeTopicImplications 
-            .filter(x => !(topicLikesB.value.contains(x._1)))    
+            .filter(x => (Check.check).contains(x._1))    
             .persist(MEMORY_ONLY_SER)
 
         //Make a file with the top 5000 putatively off-topic entities, for manual fixing
@@ -433,7 +447,7 @@ object GeneralReports {
 sortedLikeTopicImplications.saveAsTextFile("hdfs://compute-master:9000/" + TOPIC + "/like_topic_implications")
 
 //just the like_IDs for the top 200 off-topic predictors
-val topOffTopicsB = sc.broadcast((sortedOfftopicImplications.keys().take(200)).toSet)
+val topOffTopicsB = sc.broadcast((sortedOfftopicImplications.keys().take(200).toSet)
 
 val edgeLikeFacts = targetedLikeFacts.filter(x => topOffTopicsB.contains(x(0)))
 
