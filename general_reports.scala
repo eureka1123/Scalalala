@@ -500,115 +500,125 @@ object GeneralReports {
         //(person_ID, 1) for edge_nonfans
         val edgeKv = edgeNonfans.map(x => (x,1)).persist(MEMORY_ONLY_SER)
 
+        //Takes an RDD of elements like (person_id, factor_value) and returns fandom sums for each factor value
+        val fandom_sums_by_factor: (RDD[(String, String)]) => Map[String, Int] = (factorRdd: RDD[(String, String)]) => {
+          personTopicProportions 
+            .join(factorRdd) 
+            .map(x => (x._2._2, x._2._1.toInt)) 
+            .reduceByKey((x,y)=>(x+y)) 
+            .collect()
+            .toMap
+        }
+
+        //for each factor, the number of topic fans
+        val fan_counts_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
+            personTopicLikeCounts
+            .join(factorRdd) 
+            .map(x => (x._2._2, 1)) 
+            .reduceByKey((x,y)=>(x+y)) 
+            .collect()
+            .toMap
+        }
+
+        //for each factor, the number of edge people
+        val edge_counts_by_factor: (RDD[(String, String)]) => Map[String, Int] = (factorRdd: RDD[(String, String)]) => {
+          edgeKv
+            .join(factorRdd) 
+            .map(x => (x._2._2, 1)) 
+            .reduceByKey((x,y)=>(x+y)) 
+            .collect()
+            .toMap
+        }
+
+        //for each factor, the number of total people
+        val person_counts_by_factor: (RDD[(String, String)]) => Map[String, Int] = (factorRdd: RDD[(String, String)]) => {
+          personTotalLikeCounts
+            .join(factorRdd) 
+            .map(x => (x._2._2, 1)) 
+            .reduceByKey((x,y)=>(x+y)) 
+            .collect()
+            .toMap
+        }
+
+        //for each factor, the total number of topic likes
+        val fan_like_counts_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
+          personTopicLikeCounts
+            .join(factorRdd)
+            .map(x => (x._2._2, x._2._1)) 
+            .reduceByKey((x,y)=>(x+y)) 
+            .collect()
+            .toMap
+        }
+
+        // #doesn't make sense - I must have thought this was looking at total like count or something
+        // def edge_like_counts_by_factor(factor_rdd):
+        //   return dict(person_topic_like_counts \
+        //     .join(edge_kv) \
+        //     .mapValues(lambda x: x[0]) \
+        //     .join(factor_rdd) \
+        //     .map(lambda x: (x[1][1], x[1][0])) \
+        //     .reduceByKey(add) \
+        //     .collect())
+    
+        //for each factor, the mean number of topic likes per person
+        val mean_fan_like_counts_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
+            val flcbf = fan_like_counts_by_factor(factorRdd)
+            val fcbf = fan_counts_by_factor(factorRdd)
+            for (x <- fcbf.keys if flcbf.contains(x)) yield (x, (flcbf(x)/fcbf(x)).toFloat)
+        }
+
+        // #doesn't make sense - I must have thought this was looking at total like count or something
+        // def mean_edge_like_counts_by_factor(factor_rdd):
+        //   elcbf = edge_like_counts_by_factor(factor_rdd)
+        //   ecbf = edge_counts_by_factor(factor_rdd)
+        //   return [(x, float(elcbf[x])/ecbf[x]) for x in ecbf if x in elcbf]
+
+        //for each factor, the fraction of total population that is a fan
+        val fan_concentration_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
+            fcbf = fan_counts_by_factor(factor_rdd)
+            pcbf = person_counts_by_factor(factor_rdd)
+            for (x <- fcbf.keys if pcbf.contains(x)) yield (x, 100.0*fcbf(x)/pcbf(x))
+        }
+
+        //for each factor, the fraction of total population that is an edge case
+        val edge_concentration_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
+            ecbf = edge_counts_by_factor(factor_rdd)
+            pcbf = person_counts_by_factor(factor_rdd)
+            for (x <- ecbf.keys if pcbf.contains(x)) yield (x, 100.0*ecbf(x)/pcbf(x))
+        }
+
+        //for each factor, the mean fandom across fans at that factor level
+        val fandom_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
+            fsbf = fandom_sums_by_factor(factor_rdd)
+            fcbf = fan_counts_by_factor(factor_rdd)
+            for (x <- fsbf.keys if fcbf.contains(x)) yield (x, 100.0*fsbf(x)/fcbf(x))
+
+        }
+
+        val facebookPeople = Array("Actor/director", "Artist", "Athlete", "Author", "Blogger", "Business person", "Chef", "Coach", "Dancer", "Designer", "Doctor", "Entertainer", "Entrepreneur", "Government official", "Journalist", "Lawyer", "Literary editor", "Monarch", "Musician/band", "News personality", "Personal blog", "Personal website", "Photographer", "Politician", "Producer", "Public figure", "Publisher", "Teacher", "Writer")
+        val facebookPeopleB = sc.broadcast(facebook_people.toSet)
+
+
+        val facebookMusic = Array("Album", "Arts/entertainment/nightlife", "Concert tour", "Concert venue", "Music", "Music award", "Music chart", "Music video", "Musical genre", "Musical instrument", "Musician/band", "Radio station", "Record label", "Song")
+        val facebookMusicB = sc.broadcast(facebook_music.toSet)
+
+
+        val facebookNewMedia = Array("App", "App page", "Blogger", "Business/economy website", "Computers/internet website", "Education website", "Entertainment website", "Government website", "Health/wellness website", "Home/garden website", "Internet/software", "News/media website", "Personal blog", "Personal website", "Recreation/sports website", "Reference website", "Regional website", "Science website", "Society/culture website", "Teens/kids website", "Video game", "Website")
+        val facebookNewMediaB = sc.broadcast(facebook_new_media.toSet)
+
+
+        val facebookOldMedia = Array("Article", "Author", "Book", "Book genre", "Book series", "Book store", "Entertainer", "Journalist", "Magazine", "Media/news/publishing", "Movie", "Movie character", "Movie general", "Movie genre", "Movie theater", "Museum/art gallery", "News personality", "Newspaper", "One-time tv program", "Performance art", "Photographer", "Publisher", "Radio station", "Record label", "Tv", "Tv channel", "Tv genre", "Tv network", "Tv season", "Tv show", "Tv/movie award")
+        val facebookOldMediaB = sc.broadcast(facebook_old_media.toSet)
+
+        def sorted_category_subset_implications(category_subset_b: RDD[String]) = {
+            sortedLikeTopicImplications.filter(x => category_subset_b.value.contains(x._2._2._2))
+        }
+
+        val bollywoodNames = Array("Salman Khan", "Amitabh Bachchan", "Shah Rukh Khan", "Mahendra Singh Dhoni", "Akshay Kumar", "Virat Kohli", "Aamir Khan", "Deepika Padukone", "Hrithik Roshan", "Sachin Tendulkar", "Ranbir Kapoor", "Priyanka Chopra", "AR Rahman", "Priety Zinta", "Saif Ali Khan", "Yo Yo Honey Singh", "Sonakshi Sinha", "Virender Sehwag", "Shikhar Dhawan", "Gautam Gambhir", "Katrina Kaif", "Kareena Kapoor Khan", "Karan Johar", "Madhuri Dixit", "Ajay Devgn", "Ravindra Jadeja", "Sonu Nigam", "Shreya Ghoshal", "Suresh Raina", "Mahesh Bab", "Sonam Kapoor", "Shahid Kapoor", "Kapil Sharma", "Arijit Singh", "Yuvraj Singh", "Farhan Akhtar", "Ranveer Singh", "Ajinkya Rahane", "A. R. Murugadoss", "Mika Singh", "Vijay", "Anushka Sharma", "John Abraham", "Sunny Leone", "Rajinikanth", "Bhuvneshwar Kumar", "Harbhajan Singh", "Ishant Sharma", "Saina Nehwal", "Rohit Sharma", "Ajith Kumar", "Abhishek Bachchan", "Alia Bhatt", "Parineeti Chopra", "Sania Mirza", "Sunidhi Chauhan", "MC Mary Kom", "Chetan Bhagat", "Sanjay Leela Bhansali", "Aishwarya Rai Bachchan", "Vidya Balan", "Jacqueline Fernandez", "Arjun Kapoor", "Kangana Ranaut", "Varun Dhawan", "Shraddha Kapoor", "Bipasha Bas", "Riteish Deshmukh", "Anupam Kher", "Rohit Shetty", "Navjot Singh Sidh", "Nargis Fakhri", "Anurag Kashyap", "Pawan Kalyan", "Shilpa Shetty", "Imtiaz Ali", "Anil Kapoor", "Dhanush", "Kirron Kher", "Allu Arjun", "Sukhwinder Singh", "Shankar-Ehsaan-Loy", "Hema Malini", "Viswanathan Anand", "Vishal-Shekhar", "Shaan", "Leander Paes", "Prabhudheva", "Rohan Bopanna", "Sajid Nadiadwala", "Anirban Lahiri", "Mithun Chakraborty", "Vir Das", "Manish Paul", "Malaika Arora Khan", "Amish Tripathi", "Ram Kapoor", "Remo D’Souza", "Remo D'Souza", "Terence Lewis", "Papa CJ")
+
     }
 }
 
-
-//Takes an RDD of elements like (person_id, factor_value) and returns fandom sums for each factor value
-def fandom_sums_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
-  personTopicProportions 
-    .join(factorRdd) 
-    .map(x => (x._2._2, x._2._1)) 
-    .reduceByKey((x,y)=>(x+y)) 
-    .collect()
-    .toMap
-}
-
-//for each factor, the number of topic fans
-def fan_counts_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
-    personTopicLikeCounts
-    .join(factorRdd) 
-    .map(x => (x._2._2, 1)) 
-    .reduceByKey((x,y)=>(x+y)) 
-    .collect()
-    .toMap
-}
-
-//for each factor, the number of edge people
-def edge_counts_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
-  edgeKv
-    .join(factorRdd) 
-    .map(x => (x._2._2, 1)) 
-    .reduceByKey((x,y)=>(x+y)) 
-    .collect()
-    .toMap
-}
-
-//for each factor, the number of total people
-def person_counts_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
-  personTotalLikeCounts
-    .join(factorRdd) 
-    .map(x => (x._2._2, 1)) 
-    .reduceByKey((x,y)=>(x+y)) 
-    .collect()
-    .toMap
-}
-
-//for each factor, the total number of topic likes
-def fan_like_counts_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
-  personTopicLikeCounts
-    .join(factorRdd)
-    .map(x => (x._2._2, x._2._1)) 
-    .reduceByKey((x,y)=>(x+y)) 
-    .collect()
-    .toMap
-}
-
-// #doesn't make sense - I must have thought this was looking at total like count or something
-// def edge_like_counts_by_factor(factor_rdd):
-//   return dict(person_topic_like_counts \
-//     .join(edge_kv) \
-//     .mapValues(lambda x: x[0]) \
-//     .join(factor_rdd) \
-//     .map(lambda x: (x[1][1], x[1][0])) \
-//     .reduceByKey(add) \
-//     .collect())
-
-// //for each factor, the mean number of topic likes per person
-// def mean_fan_like_counts_by_factor(factorRdd: RDD[String]): Array((Int,Float))
-//   val flcbf = fan_like_counts_by_factor(factorRdd)
-//   val fcbf = fan_counts_by_factor(factorRdd)
-//   [(x, float(flcbf[x])/fcbf[x]) for x in fcbf if x in flcbf]
-
-// // #doesn't make sense - I must have thought this was looking at total like count or something
-// // def mean_edge_like_counts_by_factor(factor_rdd):
-// //   elcbf = edge_like_counts_by_factor(factor_rdd)
-// //   ecbf = edge_counts_by_factor(factor_rdd)
-// //   return [(x, float(elcbf[x])/ecbf[x]) for x in ecbf if x in elcbf]
-
-// //for each factor, the fraction of total population that is a fan
-// def fan_concentration_by_factor(factor_rdd):
-//   fcbf = fan_counts_by_factor(factor_rdd)
-//   pcbf = person_counts_by_factor(factor_rdd)
-//   return [(x, 100.0*fcbf[x]/pcbf[x]) for x in fcbf if x in pcbf]
-
-// //for each factor, the fraction of total population that is an edge case
-// def edge_concentration_by_factor(factor_rdd):
-//   ecbf = edge_counts_by_factor(factor_rdd)
-//   pcbf = person_counts_by_factor(factor_rdd)
-//   return [(x, 100.0*ecbf[x]/pcbf[x]) for x in ecbf if x in pcbf]
-
-// //for each factor, the mean fandom across fans at that factor level
-// def fandom_by_factor(factor_rdd):
-//   fsbf = fandom_sums_by_factor(factor_rdd)
-//   fcbf = fan_counts_by_factor(factor_rdd)
-//   return [(x, 100.0*fsbf[x]/fcbf[x]) for x in fsbf if x in fcbf]
-
-
-val facebook_people = Array("Actor/director", "Artist", "Athlete", "Author", "Blogger", "Business person", "Chef", "Coach", "Dancer", "Designer", "Doctor", "Entertainer", "Entrepreneur", "Government official", "Journalist", "Lawyer", "Literary editor", "Monarch", "Musician/band", "News personality", "Personal blog", "Personal website", "Photographer", "Politician", "Producer", "Public figure", "Publisher", "Teacher", "Writer")
-val facebook_people_b = sc.broadcast(facebook_people.toSet)
-
-
-val facebook_music = Array("Album", "Arts/entertainment/nightlife", "Concert tour", "Concert venue", "Music", "Music award", "Music chart", "Music video", "Musical genre", "Musical instrument", "Musician/band", "Radio station", "Record label", "Song")
-val facebook_music_b = sc.broadcast(facebook_music.toSet)
-
-
-val facebook_new_media = Array("App", "App page", "Blogger", "Business/economy website", "Computers/internet website", "Education website", "Entertainment website", "Government website", "Health/wellness website", "Home/garden website", "Internet/software", "News/media website", "Personal blog", "Personal website", "Recreation/sports website", "Reference website", "Regional website", "Science website", "Society/culture website", "Teens/kids website", "Video game", "Website")
-val facebook_new_media_b = sc.broadcast(facebook_new_media.toSet)
-
-
-val facebook_old_media = Array("Article", "Author", "Book", "Book genre", "Book series", "Book store", "Entertainer", "Journalist", "Magazine", "Media/news/publishing", "Movie", "Movie character", "Movie general", "Movie genre", "Movie theater", "Museum/art gallery", "News personality", "Newspaper", "One-time tv program", "Performance art", "Photographer", "Publisher", "Radio station", "Record label", "Tv", "Tv channel", "Tv genre", "Tv network", "Tv season", "Tv show", "Tv/movie award")
-val facebook_old_media_b = sc.broadcast(facebook_old_media.toSet)
 
 
 
@@ -627,12 +637,6 @@ def sorted_names_subset_implications(lowercase_name_subset_b):
 
 **/
 
-def sorted_category_subset_implications(category_subset_b: RDD[String]) = {
-    sortedLikeTopicImplications.filter(x => category_subset_b.value.contains(x._2._2._2))
-}
-
-
-bollywood_names = Array("Salman Khan", "Amitabh Bachchan", "Shah Rukh Khan", "Mahendra Singh Dhoni", "Akshay Kumar", "Virat Kohli", "Aamir Khan", "Deepika Padukone", "Hrithik Roshan", "Sachin Tendulkar", "Ranbir Kapoor", "Priyanka Chopra", "AR Rahman", "Priety Zinta", "Saif Ali Khan", "Yo Yo Honey Singh", "Sonakshi Sinha", "Virender Sehwag", "Shikhar Dhawan", "Gautam Gambhir", "Katrina Kaif", "Kareena Kapoor Khan", "Karan Johar", "Madhuri Dixit", "Ajay Devgn", "Ravindra Jadeja", "Sonu Nigam", "Shreya Ghoshal", "Suresh Raina", "Mahesh Bab", "Sonam Kapoor", "Shahid Kapoor", "Kapil Sharma", "Arijit Singh", "Yuvraj Singh", "Farhan Akhtar", "Ranveer Singh", "Ajinkya Rahane", "A. R. Murugadoss", "Mika Singh", "Vijay", "Anushka Sharma", "John Abraham", "Sunny Leone", "Rajinikanth", "Bhuvneshwar Kumar", "Harbhajan Singh", "Ishant Sharma", "Saina Nehwal", "Rohit Sharma", "Ajith Kumar", "Abhishek Bachchan", "Alia Bhatt", "Parineeti Chopra", "Sania Mirza", "Sunidhi Chauhan", "MC Mary Kom", "Chetan Bhagat", "Sanjay Leela Bhansali", "Aishwarya Rai Bachchan", "Vidya Balan", "Jacqueline Fernandez", "Arjun Kapoor", "Kangana Ranaut", "Varun Dhawan", "Shraddha Kapoor", "Bipasha Bas", "Riteish Deshmukh", "Anupam Kher", "Rohit Shetty", "Navjot Singh Sidh", "Nargis Fakhri", "Anurag Kashyap", "Pawan Kalyan", "Shilpa Shetty", "Imtiaz Ali", "Anil Kapoor", "Dhanush", "Kirron Kher", "Allu Arjun", "Sukhwinder Singh", "Shankar-Ehsaan-Loy", "Hema Malini", "Viswanathan Anand", "Vishal-Shekhar", "Shaan", "Leander Paes", "Prabhudheva", "Rohan Bopanna", "Sajid Nadiadwala", "Anirban Lahiri", "Mithun Chakraborty", "Vir Das", "Manish Paul", "Malaika Arora Khan", "Amish Tripathi", "Ram Kapoor", "Remo D’Souza", "Remo D'Souza", "Terence Lewis", "Papa CJ")
 
 
 var buffer = new ListBuffer[String]()
