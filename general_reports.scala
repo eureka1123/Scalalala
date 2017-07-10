@@ -108,8 +108,20 @@ object GeneralReports {
 
         val topicLikes = sc.parallelize(evalString(topicLikesString).toList)
 
-        val topicLikesB = sc.broadcast(topicLikes.map(x => x._1).collect().toSet)
+        val topicLikesBPre = sc.parallelize(topicLikes.map(x => (x._1,1)).collect())
 
+        val topicLikesB = sc.broadcast(topicLikes.map(x => x._1).collect().toSet)
+        
+        // val topicLikesBPre = topicLikes.map(x => x._1).collect().toSet
+
+        // var topicLikesBValue = scala.collection.mutable.Set[Int]()
+        
+        // topicLikesBPre.foreach{
+        //     topicLikesBValue += _.toInt
+        // }
+
+        // val topicLikesB = sc.broadcast(topicLikesBPre)
+        
         var manyTopicEntities = false
 
         if (topicLikesB.value.size >= 1000){
@@ -337,7 +349,7 @@ object GeneralReports {
             .persist(MEMORY_ONLY_SER)
 
         val clean_relationships: ((String, String)) => ((String, String)) = (rel:((String, String))) => {
-            (rel._1, WordUtils.capitalize(rel._2).replaceAll("""\(Pending)\""","")) //does not include unicode, may need to be fixed
+            (rel._1, WordUtils.capitalize(rel._2).replaceAll("(Pending)","")) //does not include unicode, may need to be fixed
         }
 
         //(person ID, relationship status)
@@ -380,7 +392,15 @@ object GeneralReports {
             val index2 = str.indexOf("\'", str.indexOf("\'") + 1)
             var a: String =  str.substring(index+1, index2)
             var b: Double = str.substring(str.indexOf(" "), str.length-1).toDouble
-            (a,b) 
+            (a,b)
+        }
+
+        val transformScala: (String) => (String, Double) = (str: String) =>{
+            val index = str.indexOf("(")
+            val index2 = str.indexOf(",")
+            var a: String =  str.substring(index+1, index2)
+            var b: Double = str.substring(index2+1, str.length-1).toDouble
+            (a,b)
         }
 
         if (!fileExists) {
@@ -404,7 +424,7 @@ object GeneralReports {
             likeTopicSum.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum")
         } else{
             var pre = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_sum")
-            likeTopicSum = pre.map(transform)
+            likeTopicSum = pre.map(transformScala)
         }
 
         //(like ID, number of likes for that ID) (for big+topic likes)
@@ -412,7 +432,7 @@ object GeneralReports {
 
         //This is actually not just the strength normalized by count; it's also multiplied by an exponentiation (<1.0) of the count, so that more objectively popular things are weighted higher. Without this multiplication, we'd divide by x[1][1], by dividing by something less than that we're multiplying by the corresponding value. E.g., dividing by x[1][1]**0.7, we're weighting by popularity**0.3.
         //(like ID, topic-predictive power for that like ID)
-        val likeTopicImplications = likeTopicSum.join(likeTopicCount).map(x => (x._1, x._2._1 / scala.math.pow(x._2._2, 0.7))).persist(MEMORY_ONLY_SER)
+        var likeTopicImplications = likeTopicSum.join(likeTopicCount).map(x => (x._1, x._2._1 / scala.math.pow(x._2._2, 0.7))).persist(MEMORY_ONLY_SER)
 
         //(like ID, (predictive power, (like name, like type))
         val sortedLikeTopicImplications = likeTopicImplications 
@@ -420,97 +440,118 @@ object GeneralReports {
           .sortBy(x => x._2._1, false, SLICES) 
           .persist(MEMORY_ONLY_SER)
 
-        object Check {
-            def check() = {
-                var topicLikesBValue = scala.collection.mutable.Set[Int]()
-                topicLikesB.value.foreach{
-                    topicLikesBValue += _.toInt
-                }
-                topicLikesBValue
-            }
-        }
-        
-        // val check: ((String, (Double, (String, String)))) => Boolean = (input:((String, (Double, (String, String))))) => {
-        //     !(Check.check.contains(input._1))
-        // }
-
-        val sortedOfftopicImplications = sortedLikeTopicImplications 
-            .filter(x => (Check.check).contains(x._1))    
+        var sortedOfftopicImplications = sortedLikeTopicImplications 
+            // .filter(x => topicLikesB.value.contains(x._1.toInt)) 
+            .join(topicLikesBPre)
+            .map(x => (x._1,x._2._1))   
             .persist(MEMORY_ONLY_SER)
 
         //Make a file with the top 5000 putatively off-topic entities, for manual fixing
-        // ot_file = codecs.open(TOPIC + "_top_offtopics.txt", "w", "utf-8")
-        // ot_file.write(unicode(sorted_offtopic_implications.take(5000)))
-        // ot_file.close()
+        val otFile = TOPIC + "_top_offtopics2.txt"
+        val otFileWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(otFile)))
+        for (x <- sortedOfftopicImplications.take(5000)) {
+            otFileWriter.write(x + "\n")  // however you want to format it
+        }
+        otFileWriter.close()
+
+
+        // ############################################################################
+        // #
+        // # RUN TO HERE, AND THEN EXAMINE THE TOPIC_top_offtopics.txt FILE. COPY THINGS FROM
+        // # THAT FILE THAT ACTUALLY BELONG IN THE ENTITIES FILE INTO THE ENTITIES FILE.
+        // # IF THERE WERE ANY, MAKE SURE TO DELETE LIKE_TOPIC_FRACTIONS AND LIKE_TOPIC_SUM:
+        // # hdfs dfs -rm -r /<TOPIC>/like_topic_fractions
+        // # hdfs dfs -rm -r /<TOPIC>/like_topic_sum
+        // # THEN RE-RUN EVERYTHING FROM THE BEGINNING; THIS TIME YOU SHOULDN'T HAVE TO STOP HERE,
+        // # BUT YOU CAN IF YOU WANT TO DOUBLE-CHECK THAT NO NEW ACTUALLY-ON-TOPIC ENTITIES
+        // # CREPT INTO THE TOP PART OF THE OFF-TOPIC LIST.
+        // # FOR THE RE-RUN, YOU'LL STILL HAVE TO STOP AROUND LINE 1295 TO GET A FB KEY.
+        // # IF THERE WEREN'T ANY PROBLEMS, YOU CAN JUST CONTINUE RUNNING FROM HERE.
+        // #
+        // ############################################################################
+
+        try{
+            sortedLikeTopicImplications.saveAsTextFile("hdfs://compute-master:9000/" + TOPIC + "/like_topic_implications")
+        } catch {
+            case e: org.apache.hadoop.mapred.FileAlreadyExistsException => println("File exists.")
+        }
+
+        val topOffTopicsBPre = sc.parallelize(sortedOfftopicImplications.keys.take(200)).map(x => (x,1))
+        //just the like_IDs for the top 200 off-topic predictors
+        val topOffTopicsB = sc.broadcast(sortedOfftopicImplications.keys.take(200).toSet)
+
+        val edgeLikeFacts = targetedLikeFacts
+            .join(topOffTopicsBPre)
+            .map(x => (x._1, x._2._1))
+
+        val edgeLikers = edgeLikeFacts
+            .values
+            .distinct()
+
+        val fanIDs = personTopicLikeCounts.keys
+
+        //person_IDs who like top off-topic predictors but not any on-topic predictors
+        val edgeNonfans = personRelevantLikeCounts
+            .keys
+            .subtract(fanIDs)
+            .intersection(edgeLikers)
+            .persist(MEMORY_ONLY_SER)
+
+        //(person_ID, 1) for edge_nonfans
+        val edgeKv = edgeNonfans.map(x => (x,1)).persist(MEMORY_ONLY_SER)
+
     }
 }
 
-sortedLikeTopicImplications.saveAsTextFile("hdfs://compute-master:9000/" + TOPIC + "/like_topic_implications")
-
-//just the like_IDs for the top 200 off-topic predictors
-val topOffTopicsB = sc.broadcast((sortedOfftopicImplications.keys().take(200).toSet)
-
-val edgeLikeFacts = targetedLikeFacts.filter(x => topOffTopicsB.contains(x(0)))
-
-val edgeLikers = edgeLikeFacts
-    .values()
-    .distinct()
-
-val fanIDs = personTopicLikeCounts.keys()
-
-//person_IDs who like top off-topic predictors but not any on-topic predictors
-val edgeNonfans = personRelevantLikeCounts
-    .keys()
-    .substract(fanIDs)
-    .intersection(edgeLikers)
-    .persist(MEMORY_ONLY_SER)
-
-//(person_ID, 1) for edge_nonfans
-val edgeKv = edgeNonfans.map(x => (x,1)).persist(MEMORY_ONLY_SER)
 
 //Takes an RDD of elements like (person_id, factor_value) and returns fandom sums for each factor value
-def fandom_sums_by_factor(factorRdd: RDD[String]): RDD[String] = {
-  dict(personTopicProportions 
+def fandom_sums_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
+  personTopicProportions 
     .join(factorRdd) 
     .map(x => (x._2._2, x._2._1)) 
     .reduceByKey((x,y)=>(x+y)) 
-    .collect())
+    .collect()
+    .toMap
 }
 
 //for each factor, the number of topic fans
-def fan_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
-  dict(personTopicLikeCounts
+def fan_counts_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
+    personTopicLikeCounts
     .join(factorRdd) 
     .map(x => (x._2._2, 1)) 
     .reduceByKey((x,y)=>(x+y)) 
-    .collect())
+    .collect()
+    .toMap
 }
 
 //for each factor, the number of edge people
-def edge_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
-  dict(edgeKv
+def edge_counts_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
+  edgeKv
     .join(factorRdd) 
     .map(x => (x._2._2, 1)) 
     .reduceByKey((x,y)=>(x+y)) 
-    .collect())
+    .collect()
+    .toMap
 }
 
 //for each factor, the number of total people
-def person_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
-  dict(personTotalLikeCounts
+def person_counts_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
+  personTotalLikeCounts
     .join(factorRdd) 
     .map(x => (x._2._2, 1)) 
     .reduceByKey((x,y)=>(x+y)) 
-    .collect())
+    .collect()
+    .toMap
 }
 
 //for each factor, the total number of topic likes
-def fan_like_counts_by_factor(factorRdd: RDD[String]): RDD[String] = {
-  dict(personTopicLikeCounts
+def fan_like_counts_by_factor(factorRdd: RDD[(String, Integer)]): RDD[(String, Integer)] = {
+  personTopicLikeCounts
     .join(factorRdd)
     .map(x => (x._2._2, x._2._1)) 
     .reduceByKey((x,y)=>(x+y)) 
-    .collect())
+    .collect()
+    .toMap
 }
 
 // #doesn't make sense - I must have thought this was looking at total like count or something
