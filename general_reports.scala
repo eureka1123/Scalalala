@@ -49,7 +49,7 @@ object GeneralReports {
             .setName("dimLikes")
             .persist(MEMORY_ONLY_SER)
 
-        // val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
+        val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
 
@@ -297,14 +297,14 @@ object GeneralReports {
                 (a._1, None)
             }
         }
-        val getAge: ((String, Option[Calendar])) => (String, Double) = (a:((String, Option[Calendar]))) => {
-            var age: Double =0.0
+        val getAge: ((String, Option[Calendar])) => (String, Int) = (a:((String, Option[Calendar]))) => {
+            var age: Int = 0
             val milliInYear: Double =31557600000.0
             var str = a._1
             var date = a._2
             val today : Calendar = Calendar.getInstance()
             date match {
-                case Some(date) => age= (today.getTime().getTime() - date.getTime().getTime())/milliInYear
+                case Some(date) => age= ((today.getTime().getTime() - date.getTime().getTime())/milliInYear).toInt
                 case None => val age= -1
             }
 
@@ -328,7 +328,7 @@ object GeneralReports {
           .setName("people_ages")
           .persist(MEMORY_ONLY_SER)
 
-        val get_ageband: ((String, Double)) => (String,String) = (a:((String, Double))) => {
+        val get_ageband: ((String, Int)) => (String,String) = (a:((String, Int))) => {
             if (a._2 < 18) { (a._1, "Under 18") }
             if (a._2 < 25) { (a._1, "18-24") }
             if (a._2 < 35) { (a._1, "25-34") }
@@ -503,7 +503,7 @@ object GeneralReports {
         val edgeKv = edgeNonfans.map(x => (x,1)).persist(MEMORY_ONLY_SER)
 
         //Takes an RDD of elements like (person_id, factor_value) and returns fandom sums for each factor value
-        val fandom_sums_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
+        val fandom_sums_by_factor: (RDD[(String, Int)]) => Map[Int, Int] = (factorRdd: RDD[(String, Int)]) => {
           personTopicProportions 
             .join(factorRdd) 
             .map(x => (x._2._2, x._2._1.toInt)) 
@@ -513,7 +513,7 @@ object GeneralReports {
         }
 
         //for each factor, the number of topic fans
-        val fan_counts_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
+        val fan_counts_by_factor: (RDD[(String, Int)]) => Map[Int, Int] = (factorRdd: RDD[(String, Int)]) => {
             personTopicLikeCounts
             .join(factorRdd) 
             .map(x => (x._2._2, 1)) 
@@ -523,7 +523,7 @@ object GeneralReports {
         }
 
         //for each factor, the number of edge people
-        val edge_counts_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
+        val edge_counts_by_factor: (RDD[(String, Int)]) => Map[Int, Int] = (factorRdd: RDD[(String, Int)]) => {
           edgeKv
             .join(factorRdd) 
             .map(x => (x._2._2, 1)) 
@@ -533,7 +533,7 @@ object GeneralReports {
         }
 
         //for each factor, the number of total people
-        val person_counts_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
+        val person_counts_by_factor: (RDD[(String, Int)]) => Map[Int, Int] = (factorRdd: RDD[(String, Int)]) => {
           personTotalLikeCounts
             .join(factorRdd) 
             .map(x => (x._2._2, 1)) 
@@ -543,7 +543,7 @@ object GeneralReports {
         }
 
         //for each factor, the total number of topic likes
-        val fan_like_counts_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
+        val fan_like_counts_by_factor: (RDD[(String, Int)]) => Map[Int, Int] = (factorRdd: RDD[(String, Int)]) => {
           personTopicLikeCounts
             .join(factorRdd)
             .map(x => (x._2._2, x._2._1)) 
@@ -563,7 +563,7 @@ object GeneralReports {
         //     .collect())
     
         //for each factor, the mean number of topic likes per person
-        val mean_fan_like_counts_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
+        val mean_fan_like_counts_by_factor: (RDD[(String, Int)]) => List[(Int,Float)] = (factorRdd: RDD[(String, Int)]) => {
             val flcbf = fan_like_counts_by_factor(factorRdd)
             val fcbf = fan_counts_by_factor(factorRdd)
             for (x <- (fcbf.keys).toList if flcbf.contains(x)) yield (x, (flcbf(x)/fcbf(x)).toFloat)
@@ -576,21 +576,21 @@ object GeneralReports {
         //   return [(x, float(elcbf[x])/ecbf[x]) for x in ecbf if x in elcbf]
 
         //for each factor, the fraction of total population that is a fan
-        val fan_concentration_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
+        val fan_concentration_by_factor: (RDD[(String, Int)]) => List[(Int,Float)] = (factorRdd: RDD[(String, Int)]) => {
             val fcbf = fan_counts_by_factor(factorRdd)
             val pcbf = person_counts_by_factor(factorRdd)
             for (x <- fcbf.keys.toList if pcbf.contains(x)) yield (x, (100.0*fcbf(x)/pcbf(x)).toFloat)
         }
 
         //for each factor, the fraction of total population that is an edge case
-        val edge_concentration_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
+        val edge_concentration_by_factor: (RDD[(String, Int)]) => List[(Int,Float)] = (factorRdd: RDD[(String, Int)]) => {
             val ecbf = edge_counts_by_factor(factorRdd)
             val pcbf = person_counts_by_factor(factorRdd)
             for (x <- ecbf.keys.toList if pcbf.contains(x)) yield (x, (100.0*ecbf(x)/pcbf(x)).toFloat)
         }
 
         //for each factor, the mean fandom across fans at that factor level
-        val fandom_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
+        val fandom_by_factor: (RDD[(String, Int)]) => List[(Int,Float)] = (factorRdd: RDD[(String, Int)]) => {
             val fsbf = fandom_sums_by_factor(factorRdd)
             val fcbf = fan_counts_by_factor(factorRdd)
             for (x <- fsbf.keys.toList if fcbf.contains(x)) yield (x, (100.0*fsbf(x)/fcbf(x)).toFloat)
@@ -807,38 +807,59 @@ object GeneralReports {
             println(lowAvidSortedLikeTopicImplications.count())
         }
 
-        val india2011LiterateMalePopByAge = (0, 0, 0, 0, 0, 0, 0, 9514681, 12048195, 11016646, 14428312, 12033276, 13550572, 11772852, 12244668, 12563120, 11917057, 10469408, 13488663, 9908961, 13090262, 9525858, 10915987, 8661031, 8924529, 11868108, 8904360, 7493450, 9098579, 6417372, 12211844, 6070718, 7303343, 5224594, 5819425, 11158216, 6434171, 4801621, 6445374, 4741031, 10436450, 4775158, 5302304, 3604811, 3771631, 8413066, 4262767, 3194157, 4174918, 3077690, 7035249, 3138325, 3084680, 2260327, 2523672, 4969516, 2699754, 1866135, 2340320, 1874559, 4732949, 2039301, 1980765, 1498148, 1425861, 3349154, 1449289, 982985, 1127045, 890720, 2514410, 930171, 779215, 520801, 537150, 1152003, 516815, 317492, 346933, 266675, 734820, 267709, 202842, 140563, 141911, 290445, 132870, 80312, 78592, 60899, 156326, 69390, 54049, 34963, 37362, 68576, 38348, 26006, 32901, 15016, 163303)
+        val india2011LiterateMalePopByAge = Array(0, 0, 0, 0, 0, 0, 0, 9514681, 12048195, 11016646, 14428312, 12033276, 13550572, 11772852, 12244668, 12563120, 11917057, 10469408, 13488663, 9908961, 13090262, 9525858, 10915987, 8661031, 8924529, 11868108, 8904360, 7493450, 9098579, 6417372, 12211844, 6070718, 7303343, 5224594, 5819425, 11158216, 6434171, 4801621, 6445374, 4741031, 10436450, 4775158, 5302304, 3604811, 3771631, 8413066, 4262767, 3194157, 4174918, 3077690, 7035249, 3138325, 3084680, 2260327, 2523672, 4969516, 2699754, 1866135, 2340320, 1874559, 4732949, 2039301, 1980765, 1498148, 1425861, 3349154, 1449289, 982985, 1127045, 890720, 2514410, 930171, 779215, 520801, 537150, 1152003, 516815, 317492, 346933, 266675, 734820, 267709, 202842, 140563, 141911, 290445, 132870, 80312, 78592, 60899, 156326, 69390, 54049, 34963, 37362, 68576, 38348, 26006, 32901, 15016, 163303)
 
-        val india2011LiterateFemalePopByAge = (0, 0, 0, 0, 0, 0, 0, 8563745, 10788764, 9916088, 12669290, 10719197, 11935206, 10697355, 10912716, 10736377, 10162749, 8709604, 10741509, 8371453, 10819313, 7657028, 8535248, 7248941, 7366533, 9289801, 7098521, 5984106, 7511007, 5114221, 8937893, 4576765, 5504337, 4190781, 4425691, 7229887, 4606198, 3599719, 4948853, 3312487, 6167905, 3046994, 3424003, 2583786, 2518198, 4736152, 2675024, 2095081, 2745754, 1865955, 3778264, 1739450, 1770509, 1388417, 1528153, 2721117, 1504141, 1072488, 1402790, 1013154, 2392536, 1042158, 1010783, 805423, 746344, 1606497, 719094, 479478, 590701, 430413, 1079214, 413925, 353231, 250900, 261201, 544247, 253661, 155258, 182147, 136080, 355572, 135802, 106843, 79753, 81548, 154829, 76208, 46960, 49183, 37709, 86180, 44460, 35769, 24456, 25580, 40163, 24842, 17760, 22384, 9550, 115804)
+        val india2011LiterateFemalePopByAge = Array(0, 0, 0, 0, 0, 0, 0, 8563745, 10788764, 9916088, 12669290, 10719197, 11935206, 10697355, 10912716, 10736377, 10162749, 8709604, 10741509, 8371453, 10819313, 7657028, 8535248, 7248941, 7366533, 9289801, 7098521, 5984106, 7511007, 5114221, 8937893, 4576765, 5504337, 4190781, 4425691, 7229887, 4606198, 3599719, 4948853, 3312487, 6167905, 3046994, 3424003, 2583786, 2518198, 4736152, 2675024, 2095081, 2745754, 1865955, 3778264, 1739450, 1770509, 1388417, 1528153, 2721117, 1504141, 1072488, 1402790, 1013154, 2392536, 1042158, 1010783, 805423, 746344, 1606497, 719094, 479478, 590701, 430413, 1079214, 413925, 353231, 250900, 261201, 544247, 253661, 155258, 182147, 136080, 355572, 135802, 106843, 79753, 81548, 154829, 76208, 46960, 49183, 37709, 86180, 44460, 35769, 24456, 25580, 40163, 24842, 17760, 22384, 9550, 115804)
 
-        val india2011LiteratePopByAge = (0, 0, 0, 0, 0, 0, 0, 18078426, 22836959, 20932734, 27097602, 22752473, 25485778, 22470207, 23157384, 23299497, 22079806, 19179012, 24230172, 18280414, 23909575, 17182886, 19451235, 15909972, 16291062, 21157909, 16002881, 13477556, 16609586, 11531593, 21149737, 10647483, 12807680, 9415375, 10245116, 18388103, 11040369, 8401340, 11394227, 8053518, 16604355, 7822152, 8726307, 6188597, 6289829, 13149218, 6937791, 5289238, 6920672, 4943645, 10813513, 4877775, 4855189, 3648744, 4051825, 7690633, 4203895, 2938623, 3743110, 2887713, 7125485, 3081459, 2991548, 2303571, 2172205, 4955651, 2168383, 1462463, 1717746, 1321133, 3593624, 1344096, 1132446, 771701, 798351, 1696250, 770476, 472750, 529080, 402755, 1090392, 403511, 309685, 220316, 223459, 445274, 209078, 127272, 127775, 98608, 242506, 113850, 89818, 59419, 62942, 108739, 63190, 43766, 55285, 24566, 279107)
+        val india2011LiteratePopByAge = Array(0, 0, 0, 0, 0, 0, 0, 18078426, 22836959, 20932734, 27097602, 22752473, 25485778, 22470207, 23157384, 23299497, 22079806, 19179012, 24230172, 18280414, 23909575, 17182886, 19451235, 15909972, 16291062, 21157909, 16002881, 13477556, 16609586, 11531593, 21149737, 10647483, 12807680, 9415375, 10245116, 18388103, 11040369, 8401340, 11394227, 8053518, 16604355, 7822152, 8726307, 6188597, 6289829, 13149218, 6937791, 5289238, 6920672, 4943645, 10813513, 4877775, 4855189, 3648744, 4051825, 7690633, 4203895, 2938623, 3743110, 2887713, 7125485, 3081459, 2991548, 2303571, 2172205, 4955651, 2168383, 1462463, 1717746, 1321133, 3593624, 1344096, 1132446, 771701, 798351, 1696250, 770476, 472750, 529080, 402755, 1090392, 403511, 309685, 220316, 223459, 445274, 209078, 127272, 127775, 98608, 242506, 113850, 89818, 59419, 62942, 108739, 63190, 43766, 55285, 24566, 279107)
 
         //Probably better to look at men and women separately. For now, though, combining.
-        // import collection.mutable.HashMap
-        // val fcba = new HashMap[Int,String]()  { override def default(key:Int) = "-" }
+        var fcba = collection.mutable.HashMap(fan_counts_by_factor(peopleAges).toSeq: _*).withDefaultValue(0) 
+
+        try{
+            fcba(100) = (for(x <- 100 until 111) yield fcba(x)).sum
+            for (x <- 101 until 111){
+                fcba.remove(x)
+            }
+        }catch{ 
+            case e: NoSuchElementException => println("no such element")
+        }
         
-        val fcba = defaultdict(lambda: 0, fan_counts_by_factor(people_ages))
-        fcba[100] = sum([fcba[x] for x in range(100, 111)])
-        for x in range(101, 111):
-          try:
-            del fcba[x]
-          except:
-            pass
+        var pcba = collection.mutable.HashMap(person_counts_by_factor(peopleAges).toSeq: _*).withDefaultValue(0) 
 
-        val pcba = defaultdict(lambda: 0, person_counts_by_factor(people_ages))
-        pcba[100] = sum([pcba[x] for x in range(100, 111)])
-        for x in range(101, 111):
-          try:
-            del pcba[x]
-          except:
-            pass
+        try{
+            pcba(100) = (for(x <- 100 until 111) yield pcba(x)).sum
+            for (x <- 101 until 111){
+                pcba.remove(x)
+            }
+        }catch{ 
+            case e: NoSuchElementException => println("no such element")
+        }
 
-        val estTopicFans = defaultdict(lambda: 0.0)
-        for x in range(101):
+        var estTopicFans = new HashMap[Int,Float]()  { override def default(key:Int) = (0.0).toFloat }
+        for (x<-0 until 101){
+            try{
+                estTopicFans(x) = (fcba(x)).toFloat / pcba(x) * india2011LiteratePopByAge(x)
+            }catch{
+                case e: NoSuchElementException => println("no such element")
+            }
+        }
+
+        def get_fb_image(ia_id: String){
+          val fbid = iaFbMapB.value(ia_id)
+          val fbImGetter = "https://graph.facebook.com/" + fbid + "/picture?access_token=" + FB_ACCESS_TOKEN + "&redirect=false&height=200&width=200"
           try:
-            est_topic_fans[x] = float(fcba[x]) / pcba[x] * india_2011_literate_pop_by_age[x]
-          except:
-            pass
+            val fbImResponse = requests.get(fbImGetter, verify=false)
+            val fbImUrl = fbImResponse.json().get("data").get("url")
+            val fbImName = re.search("/(\w+\.\w+)\?", fbImUrl).groups()(0)
+            val imFile = requests.get(fbImUrl, verify=false)
+            val im = Image.open(StringIO(im_file.content))
+            im.save(REPORT_DIR + "predictors/" + fbImName)
+            return fbImName
+          catch:
+            case e: => println("Some error")
+          return "PLACEHOLDER.JPG"
+        }
     }
 }
 
