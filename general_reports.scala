@@ -15,6 +15,8 @@ import scala.io.Source
 import scala.collection.mutable.ListBuffer
 import scala.collection.mutable.StringBuilder
 import org.apache.spark.rdd.RDD
+import org.apache.spark.broadcast.Broadcast
+import collection.mutable.HashMap
 
 object GeneralReports {
 
@@ -52,20 +54,43 @@ object GeneralReports {
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
 
         // THIS IS OLD, BUT CAN HELP FIND ENTITIES
-        val evalEntity: (Array[(String,(String, String))]) => String = (fb_entities_file :Array[(String,(String, String))]) => {
+        // val evalEntity: (Array[(String,(String, String))]) => String = (fb_entities_file :Array[(String,(String, String))]) => {
 
-            val B = new StringBuilder
+        //     val B = new StringBuilder
 
-            for(entry <- fb_entities_file) {
-                B ++= entry._1 + ","
-                B ++= entry._2._1 + "," + entry._2._2 + "--"
-            }
+        //     for(entry <- fb_entities_file) {
+        //         B ++= entry._1 + ","
+        //         B ++= entry._2._1 + "," + entry._2._2 + "--"
+        //     }
 
-            B.deleteCharAt(B.length-1)
-            val resultString = B.toString
+        //     B.deleteCharAt(B.length-1)
+        //     val resultString = B.toString
 
-            resultString
-        }
+        //     resultString
+        // }
+
+        // val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
+        //     if (a!=None){
+        //         val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
+        //         val sr2="malini".r.findFirstMatchIn((a+b).toLowerCase())
+        //         if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
+        //             true
+        //         } else {
+        //             false
+        //         }
+        //     }else{
+        //         false
+        //     }
+        // }
+
+        // val fbEntities = likes.filter(x => safe_match(x._2._1,x._2._2)).collect()
+
+        // val fbEntitiesString = evalEntity(fbEntities)
+
+        // //human readable file
+        // val fp = new PrintWriter(new File(ENTITY_FILE))
+        // fp.write(fbEntitiesString)
+        // fp.close()
 
         val evalString: (String) => ListBuffer[(String, (String, String))] = (longString : String) => {
 
@@ -80,29 +105,6 @@ object GeneralReports {
 
             res
         }
-
-        val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
-            if (a!=None){
-                val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
-                val sr2="malini".r.findFirstMatchIn((a+b).toLowerCase())
-                if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
-                    true
-                } else {
-                    false
-                }
-            }else{
-                false
-            }
-        }
-
-        val fbEntities = likes.filter(x => safe_match(x._2._1,x._2._2)).collect()
-
-        val fbEntitiesString = evalEntity(fbEntities)
-
-        //human readable file
-        val fp = new PrintWriter(new File(ENTITY_FILE))
-        fp.write(fbEntitiesString)
-        fp.close()
 
         val topicLikesString = Source.fromFile(ENTITY_FILE).mkString
 
@@ -501,7 +503,7 @@ object GeneralReports {
         val edgeKv = edgeNonfans.map(x => (x,1)).persist(MEMORY_ONLY_SER)
 
         //Takes an RDD of elements like (person_id, factor_value) and returns fandom sums for each factor value
-        val fandom_sums_by_factor: (RDD[(String, String)]) => Map[String, Int] = (factorRdd: RDD[(String, String)]) => {
+        val fandom_sums_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
           personTopicProportions 
             .join(factorRdd) 
             .map(x => (x._2._2, x._2._1.toInt)) 
@@ -521,7 +523,7 @@ object GeneralReports {
         }
 
         //for each factor, the number of edge people
-        val edge_counts_by_factor: (RDD[(String, String)]) => Map[String, Int] = (factorRdd: RDD[(String, String)]) => {
+        val edge_counts_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
           edgeKv
             .join(factorRdd) 
             .map(x => (x._2._2, 1)) 
@@ -531,7 +533,7 @@ object GeneralReports {
         }
 
         //for each factor, the number of total people
-        val person_counts_by_factor: (RDD[(String, String)]) => Map[String, Int] = (factorRdd: RDD[(String, String)]) => {
+        val person_counts_by_factor: (RDD[(String, Double)]) => Map[Double, Int] = (factorRdd: RDD[(String, Double)]) => {
           personTotalLikeCounts
             .join(factorRdd) 
             .map(x => (x._2._2, 1)) 
@@ -564,7 +566,7 @@ object GeneralReports {
         val mean_fan_like_counts_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
             val flcbf = fan_like_counts_by_factor(factorRdd)
             val fcbf = fan_counts_by_factor(factorRdd)
-            for (x <- fcbf.keys if flcbf.contains(x)) yield (x, (flcbf(x)/fcbf(x)).toFloat)
+            for (x <- (fcbf.keys).toList if flcbf.contains(x)) yield (x, (flcbf(x)/fcbf(x)).toFloat)
         }
 
         // #doesn't make sense - I must have thought this was looking at total like count or something
@@ -575,150 +577,269 @@ object GeneralReports {
 
         //for each factor, the fraction of total population that is a fan
         val fan_concentration_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
-            fcbf = fan_counts_by_factor(factor_rdd)
-            pcbf = person_counts_by_factor(factor_rdd)
-            for (x <- fcbf.keys if pcbf.contains(x)) yield (x, 100.0*fcbf(x)/pcbf(x))
+            val fcbf = fan_counts_by_factor(factorRdd)
+            val pcbf = person_counts_by_factor(factorRdd)
+            for (x <- fcbf.keys.toList if pcbf.contains(x)) yield (x, (100.0*fcbf(x)/pcbf(x)).toFloat)
         }
 
         //for each factor, the fraction of total population that is an edge case
         val edge_concentration_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
-            ecbf = edge_counts_by_factor(factor_rdd)
-            pcbf = person_counts_by_factor(factor_rdd)
-            for (x <- ecbf.keys if pcbf.contains(x)) yield (x, 100.0*ecbf(x)/pcbf(x))
+            val ecbf = edge_counts_by_factor(factorRdd)
+            val pcbf = person_counts_by_factor(factorRdd)
+            for (x <- ecbf.keys.toList if pcbf.contains(x)) yield (x, (100.0*ecbf(x)/pcbf(x)).toFloat)
         }
 
         //for each factor, the mean fandom across fans at that factor level
         val fandom_by_factor: (RDD[(String, Double)]) => List[(Double,Float)] = (factorRdd: RDD[(String, Double)]) => {
-            fsbf = fandom_sums_by_factor(factor_rdd)
-            fcbf = fan_counts_by_factor(factor_rdd)
-            for (x <- fsbf.keys if fcbf.contains(x)) yield (x, 100.0*fsbf(x)/fcbf(x))
-
+            val fsbf = fandom_sums_by_factor(factorRdd)
+            val fcbf = fan_counts_by_factor(factorRdd)
+            for (x <- fsbf.keys.toList if fcbf.contains(x)) yield (x, (100.0*fsbf(x)/fcbf(x)).toFloat)
         }
 
         val facebookPeople = Array("Actor/director", "Artist", "Athlete", "Author", "Blogger", "Business person", "Chef", "Coach", "Dancer", "Designer", "Doctor", "Entertainer", "Entrepreneur", "Government official", "Journalist", "Lawyer", "Literary editor", "Monarch", "Musician/band", "News personality", "Personal blog", "Personal website", "Photographer", "Politician", "Producer", "Public figure", "Publisher", "Teacher", "Writer")
-        val facebookPeopleB = sc.broadcast(facebook_people.toSet)
+        val facebookPeopleB = sc.broadcast(facebookPeople.toSet)
 
 
         val facebookMusic = Array("Album", "Arts/entertainment/nightlife", "Concert tour", "Concert venue", "Music", "Music award", "Music chart", "Music video", "Musical genre", "Musical instrument", "Musician/band", "Radio station", "Record label", "Song")
-        val facebookMusicB = sc.broadcast(facebook_music.toSet)
+        val facebookMusicB = sc.broadcast(facebookMusic.toSet)
 
 
         val facebookNewMedia = Array("App", "App page", "Blogger", "Business/economy website", "Computers/internet website", "Education website", "Entertainment website", "Government website", "Health/wellness website", "Home/garden website", "Internet/software", "News/media website", "Personal blog", "Personal website", "Recreation/sports website", "Reference website", "Regional website", "Science website", "Society/culture website", "Teens/kids website", "Video game", "Website")
-        val facebookNewMediaB = sc.broadcast(facebook_new_media.toSet)
+        val facebookNewMediaB = sc.broadcast(facebookNewMedia.toSet)
 
 
         val facebookOldMedia = Array("Article", "Author", "Book", "Book genre", "Book series", "Book store", "Entertainer", "Journalist", "Magazine", "Media/news/publishing", "Movie", "Movie character", "Movie general", "Movie genre", "Movie theater", "Museum/art gallery", "News personality", "Newspaper", "One-time tv program", "Performance art", "Photographer", "Publisher", "Radio station", "Record label", "Tv", "Tv channel", "Tv genre", "Tv network", "Tv season", "Tv show", "Tv/movie award")
-        val facebookOldMediaB = sc.broadcast(facebook_old_media.toSet)
+        val facebookOldMediaB = sc.broadcast(facebookOldMedia.toSet)
 
-        def sorted_category_subset_implications(category_subset_b: RDD[String]) = {
-            sortedLikeTopicImplications.filter(x => category_subset_b.value.contains(x._2._2._2))
+        val sorted_category_subset_implications: (Broadcast[Set[String]]) => RDD[(String, (Double, (String, String)))] = (categorySubsetB: Broadcast[Set[String]]) => {
+            sortedLikeTopicImplications.filter(x => categorySubsetB.value.contains(x._2._2._2))
         }
 
         val bollywoodNames = Array("Salman Khan", "Amitabh Bachchan", "Shah Rukh Khan", "Mahendra Singh Dhoni", "Akshay Kumar", "Virat Kohli", "Aamir Khan", "Deepika Padukone", "Hrithik Roshan", "Sachin Tendulkar", "Ranbir Kapoor", "Priyanka Chopra", "AR Rahman", "Priety Zinta", "Saif Ali Khan", "Yo Yo Honey Singh", "Sonakshi Sinha", "Virender Sehwag", "Shikhar Dhawan", "Gautam Gambhir", "Katrina Kaif", "Kareena Kapoor Khan", "Karan Johar", "Madhuri Dixit", "Ajay Devgn", "Ravindra Jadeja", "Sonu Nigam", "Shreya Ghoshal", "Suresh Raina", "Mahesh Bab", "Sonam Kapoor", "Shahid Kapoor", "Kapil Sharma", "Arijit Singh", "Yuvraj Singh", "Farhan Akhtar", "Ranveer Singh", "Ajinkya Rahane", "A. R. Murugadoss", "Mika Singh", "Vijay", "Anushka Sharma", "John Abraham", "Sunny Leone", "Rajinikanth", "Bhuvneshwar Kumar", "Harbhajan Singh", "Ishant Sharma", "Saina Nehwal", "Rohit Sharma", "Ajith Kumar", "Abhishek Bachchan", "Alia Bhatt", "Parineeti Chopra", "Sania Mirza", "Sunidhi Chauhan", "MC Mary Kom", "Chetan Bhagat", "Sanjay Leela Bhansali", "Aishwarya Rai Bachchan", "Vidya Balan", "Jacqueline Fernandez", "Arjun Kapoor", "Kangana Ranaut", "Varun Dhawan", "Shraddha Kapoor", "Bipasha Bas", "Riteish Deshmukh", "Anupam Kher", "Rohit Shetty", "Navjot Singh Sidh", "Nargis Fakhri", "Anurag Kashyap", "Pawan Kalyan", "Shilpa Shetty", "Imtiaz Ali", "Anil Kapoor", "Dhanush", "Kirron Kher", "Allu Arjun", "Sukhwinder Singh", "Shankar-Ehsaan-Loy", "Hema Malini", "Viswanathan Anand", "Vishal-Shekhar", "Shaan", "Leander Paes", "Prabhudheva", "Rohan Bopanna", "Sajid Nadiadwala", "Anirban Lahiri", "Mithun Chakraborty", "Vir Das", "Manish Paul", "Malaika Arora Khan", "Amish Tripathi", "Ram Kapoor", "Remo D’Souza", "Remo D'Souza", "Terence Lewis", "Papa CJ")
+        
+        var buffer = new ListBuffer[String]()
 
+        for (x <- bollywoodNames){ 
+            buffer += (x.toLowerCase())
+        }
+
+        val bollywoodNamesB = sc.broadcast(buffer.toSet)
+
+        val sorted_names_subset_implications: (Broadcast[Set[String]]) => RDD[(String, (Double, (String, String)))] = (lowercaseNameSubsetB: Broadcast[Set[String]]) => {
+            sortedLikeTopicImplications.filter(x => lowercaseNameSubsetB.value.contains(x._2._2._1.toLowerCase()))
+        }
+
+        val nLikeTopics = topicLikesB.value.size
+
+        if (manyTopicEntities){
+            //top 5% of topic likes by like count, rounded down
+            //per discussion on 10/19/15, this should actually be the list of facebook pages that NBA provided us
+            //However, we'd need a good way to match those up to our IDs. I'm sure there is one, but in the 
+            //interest of time I'm putting that off for today.
+            val basicTopicLikesBPre = sc.parallelize(likeTopicCount
+                .join(topicLikesBPre)
+                .map(x => (x._1, x._2._1))
+                .sortBy(x => x._2, false, SLICES)
+                .map(x=> (x._1, 1))
+                .take((nLikeTopics * 0.05).toInt))
+
+            val basicTopicLikesB = sc.broadcast(likeTopicCount
+                .join(topicLikesBPre)
+                .map(x => (x._1, x._2._1))
+                .sortBy(x => x._2, false, SLICES)
+                .map(x=> (x._1, 1))
+                .take((nLikeTopics * 0.05).toInt).toSet)
+
+            //top 20% of topic likes by like count, rounded down
+            val commonTopicLikesBPre = sc.parallelize(likeTopicCount
+                .join(topicLikesBPre)
+                .map(x => (x._1, x._2._1))
+                .sortBy(x => x._2, false, SLICES)
+                .map(x => (x._1, 1))
+                .take((nLikeTopics * 0.2).toInt))
+
+            val commonTopicLikesB = sc.broadcast(likeTopicCount
+                .join(topicLikesBPre)
+                .map(x => (x._1, x._2._1))
+                .sortBy(x => x._2, false, SLICES)
+                .map(x => (x._1, 1))
+                .take((nLikeTopics * 0.2).toInt).toSet)
+
+            // //calculates avidity score for a like, based on ID
+            // val score_avidity: RDD[(String, Int)] => Int = (x:RDD[(String, Int)]) => {
+            //     if (basicTopicLikesBPre.join(x).count()>0){
+            //         1
+            //     }
+            //     if (topicLikesBPre.join(x).count()>0){
+            //         if (commonTopicLikesBPre.join(x).count()>0) 2 else 4
+            //     }   
+            //     0
+            // }
+
+            //(like_ID, avidity score)
+            var topicAvidityScorePre = topicAndBigLikes
+                .map(x => (x._1, 0))
+
+            var topicAvidityScore1= topicAvidityScorePre
+                .join(basicTopicLikesBPre)
+                .map(x => (x._1, 0))
+
+            var topicAvidityScore2= topicAvidityScorePre
+                .join(topicLikesBPre)
+                .map(x => (x._1, 0))
+
+            var topicAvidityScore3= topicAvidityScore2
+                .join(commonTopicLikesBPre)
+                .map(x => (x._1, 0))
+
+            topicAvidityScore2 = topicAvidityScore2
+                .subtract(topicAvidityScore3)
+
+            topicAvidityScorePre = topicAvidityScorePre
+                .subtract(topicAvidityScore1)
+                .subtract(topicAvidityScore2)
+                .subtract(topicAvidityScore3)
+
+            topicAvidityScore1= topicAvidityScore1
+                .map(x => (x._1, 1))
+
+            topicAvidityScore2= topicAvidityScore2
+                .map(x => (x._1, 4))
+
+            topicAvidityScore3= topicAvidityScore3
+                .map(x => (x._1, 2))
+
+            val topicAvidityScore = topicAvidityScorePre
+                .union(topicAvidityScore1)
+                .union(topicAvidityScore2)
+                .union(topicAvidityScore3)
+
+
+            //returns an avidity ranking
+            val avidity_ranking: ((String, Int)) => (String, String) = (x: ((String, Int))) => {
+                if (x._2.toInt >= 6){
+                    (x._1, "Avid")
+                }
+                if(x._2.toInt >= 3){
+                    (x._1, "Intermediate")
+                }
+                if(x._2.toInt >= 1){
+                    (x._1, "Casual")
+                }
+                (x._1, "Non-Fan")
+            }
+            //(person_ID, avidity ranking)
+            val personAvidityRanking = targetedLikeFacts
+                .join(topicAvidityScore)
+                .map(x => (x._2._1, x._2._2))
+                .reduceByKey((x,y) => (x+y))
+                .coalesce(SLICES)
+                .map(avidity_ranking)
+                .setName("person_avidity_ranking")
+                .cache()
+
+            val highAvidLikeTopicFractions = personTopicProportions 
+                .join(personAvidityRanking) 
+                .filter(x => x._2._2 == "Avid") 
+                .map(x => (x._1, x._2._1)) 
+                .join(bigLikeFacts) 
+                .map(x => (x._2._2, x._2._1)) 
+                .cache()
+
+            val highAvidLikeTopicCount = highAvidLikeTopicFractions
+                .map(x => (x._1, 1)).reduceByKey((x,y) => (x+y))
+
+            // (like ID, (predictive power, (like name, like type))
+            val highAvidSortedLikeTopicImplications = highAvidLikeTopicFractions 
+                .reduceByKey((x,y) => (x+y)) 
+                .join(highAvidLikeTopicCount) 
+                .map(x => (x._1, x._2._1 / scala.math.pow(x._2._2, 0.7))) 
+                .join(topicAndBigLikes) 
+                .sortBy(x => x._2._1, false, SLICES) 
+                .cache()
+            
+            println(highAvidSortedLikeTopicImplications.count())
+
+            val medAvidLikeTopicFractions = personTopicProportions 
+                .join(personAvidityRanking) 
+                .filter(x => x._2._2 == "Intermediate") 
+                .map(x => (x._1, x._2._1)) 
+                .join(bigLikeFacts) 
+                .map(x => (x._2._2, x._2._1)) 
+                .cache()
+
+            val medAvidLikeTopicCount = medAvidLikeTopicFractions
+                .map(x => (x._1, 1))
+                .reduceByKey((x,y) => (x+y))
+
+            // (like ID, (predictive power, (like name, like type))
+            val medAvidSortedLikeTopicImplications = medAvidLikeTopicFractions 
+                .reduceByKey((x,y) => (x+y)) 
+                .join(medAvidLikeTopicCount) 
+                .map(x => (x._1, x._2._1 / scala.math.pow(x._2._2, 0.7))) 
+                .join(topicAndBigLikes) 
+                .sortBy(x => x._2._1, false, SLICES) 
+                .cache()
+            
+            println(medAvidSortedLikeTopicImplications.count())
+
+            val lowAvidLikeTopicFractions = personTopicProportions 
+                .join(personAvidityRanking) 
+                .filter(x => x._2._2 == "Casual") 
+                .map(x => (x._1, x._2._1)) 
+                .join(bigLikeFacts) 
+                .map(x => (x._2._2, x._2._1)) 
+                .cache()
+
+            val lowAvidLikeTopicCount = lowAvidLikeTopicFractions
+                .map(x => (x._1, 1))
+                .reduceByKey((x,y) => (x+y))
+
+            // (like ID, (predictive power, (like name, like type))
+            val lowAvidSortedLikeTopicImplications = lowAvidLikeTopicFractions 
+                .reduceByKey((x,y) => (x+y)) 
+                .join(lowAvidLikeTopicCount) 
+                .map(x => (x._1, x._2._1 / scala.math.pow(x._2._2, 0.7))) 
+                .join(topicAndBigLikes) 
+                .sortBy(x => x._2._1, false, SLICES) 
+                .cache()
+          
+            println(lowAvidSortedLikeTopicImplications.count())
+        }
+
+        val india2011LiterateMalePopByAge = (0, 0, 0, 0, 0, 0, 0, 9514681, 12048195, 11016646, 14428312, 12033276, 13550572, 11772852, 12244668, 12563120, 11917057, 10469408, 13488663, 9908961, 13090262, 9525858, 10915987, 8661031, 8924529, 11868108, 8904360, 7493450, 9098579, 6417372, 12211844, 6070718, 7303343, 5224594, 5819425, 11158216, 6434171, 4801621, 6445374, 4741031, 10436450, 4775158, 5302304, 3604811, 3771631, 8413066, 4262767, 3194157, 4174918, 3077690, 7035249, 3138325, 3084680, 2260327, 2523672, 4969516, 2699754, 1866135, 2340320, 1874559, 4732949, 2039301, 1980765, 1498148, 1425861, 3349154, 1449289, 982985, 1127045, 890720, 2514410, 930171, 779215, 520801, 537150, 1152003, 516815, 317492, 346933, 266675, 734820, 267709, 202842, 140563, 141911, 290445, 132870, 80312, 78592, 60899, 156326, 69390, 54049, 34963, 37362, 68576, 38348, 26006, 32901, 15016, 163303)
+
+        val india2011LiterateFemalePopByAge = (0, 0, 0, 0, 0, 0, 0, 8563745, 10788764, 9916088, 12669290, 10719197, 11935206, 10697355, 10912716, 10736377, 10162749, 8709604, 10741509, 8371453, 10819313, 7657028, 8535248, 7248941, 7366533, 9289801, 7098521, 5984106, 7511007, 5114221, 8937893, 4576765, 5504337, 4190781, 4425691, 7229887, 4606198, 3599719, 4948853, 3312487, 6167905, 3046994, 3424003, 2583786, 2518198, 4736152, 2675024, 2095081, 2745754, 1865955, 3778264, 1739450, 1770509, 1388417, 1528153, 2721117, 1504141, 1072488, 1402790, 1013154, 2392536, 1042158, 1010783, 805423, 746344, 1606497, 719094, 479478, 590701, 430413, 1079214, 413925, 353231, 250900, 261201, 544247, 253661, 155258, 182147, 136080, 355572, 135802, 106843, 79753, 81548, 154829, 76208, 46960, 49183, 37709, 86180, 44460, 35769, 24456, 25580, 40163, 24842, 17760, 22384, 9550, 115804)
+
+        val india2011LiteratePopByAge = (0, 0, 0, 0, 0, 0, 0, 18078426, 22836959, 20932734, 27097602, 22752473, 25485778, 22470207, 23157384, 23299497, 22079806, 19179012, 24230172, 18280414, 23909575, 17182886, 19451235, 15909972, 16291062, 21157909, 16002881, 13477556, 16609586, 11531593, 21149737, 10647483, 12807680, 9415375, 10245116, 18388103, 11040369, 8401340, 11394227, 8053518, 16604355, 7822152, 8726307, 6188597, 6289829, 13149218, 6937791, 5289238, 6920672, 4943645, 10813513, 4877775, 4855189, 3648744, 4051825, 7690633, 4203895, 2938623, 3743110, 2887713, 7125485, 3081459, 2991548, 2303571, 2172205, 4955651, 2168383, 1462463, 1717746, 1321133, 3593624, 1344096, 1132446, 771701, 798351, 1696250, 770476, 472750, 529080, 402755, 1090392, 403511, 309685, 220316, 223459, 445274, 209078, 127272, 127775, 98608, 242506, 113850, 89818, 59419, 62942, 108739, 63190, 43766, 55285, 24566, 279107)
+
+        //Probably better to look at men and women separately. For now, though, combining.
+        // import collection.mutable.HashMap
+        // val fcba = new HashMap[Int,String]()  { override def default(key:Int) = "-" }
+        
+        val fcba = defaultdict(lambda: 0, fan_counts_by_factor(people_ages))
+        fcba[100] = sum([fcba[x] for x in range(100, 111)])
+        for x in range(101, 111):
+          try:
+            del fcba[x]
+          except:
+            pass
+
+        val pcba = defaultdict(lambda: 0, person_counts_by_factor(people_ages))
+        pcba[100] = sum([pcba[x] for x in range(100, 111)])
+        for x in range(101, 111):
+          try:
+            del pcba[x]
+          except:
+            pass
+
+        val estTopicFans = defaultdict(lambda: 0.0)
+        for x in range(101):
+          try:
+            est_topic_fans[x] = float(fcba[x]) / pcba[x] * india_2011_literate_pop_by_age[x]
+          except:
+            pass
     }
 }
 
 
-
-
-
-/**
-def sorted_category_subset_implications(category_subset_b):
-  return sorted_like_topic_implications \
-  .filter(lambda x: x[1][1][1] in category_subset_b.value)
-
-bollywood_names = [u'Salman Khan', u'Amitabh Bachchan', u'Shah Rukh Khan', u'Mahendra Singh Dhoni', u'Akshay Kumar', u'Virat Kohli', u'Aamir Khan', u'Deepika Padukone', u'Hrithik Roshan', u'Sachin Tendulkar', u'Ranbir Kapoor', u'Priyanka Chopra', u'AR Rahman', u'Priety Zinta', u'Saif Ali Khan', u'Yo Yo Honey Singh', u'Sonakshi Sinha', u'Virender Sehwag', u'Shikhar Dhawan', u'Gautam Gambhir', u'Katrina Kaif', u'Kareena Kapoor Khan', u'Karan Johar', u'Madhuri Dixit', u'Ajay Devgn', u'Ravindra Jadeja', u'Sonu Nigam', u'Shreya Ghoshal', u'Suresh Raina', u'Mahesh Babu', u'Sonam Kapoor', u'Shahid Kapoor', u'Kapil Sharma', u'Arijit Singh', u'Yuvraj Singh', u'Farhan Akhtar', u'Ranveer Singh', u'Ajinkya Rahane', u'A. R. Murugadoss', u'Mika Singh', u'Vijay', u'Anushka Sharma', u'John Abraham', u'Sunny Leone', u'Rajinikanth', u'Bhuvneshwar Kumar', u'Harbhajan Singh', u'Ishant Sharma', u'Saina Nehwal', u'Rohit Sharma', u'Ajith Kumar', u'Abhishek Bachchan', u'Alia Bhatt', u'Parineeti Chopra', u'Sania Mirza', u'Sunidhi Chauhan', u'MC Mary Kom', u'Chetan Bhagat', u'Sanjay Leela Bhansali', u'Aishwarya Rai Bachchan', u'Vidya Balan', u'Jacqueline Fernandez', u'Arjun Kapoor', u'Kangana Ranaut', u'Varun Dhawan', u'Shraddha Kapoor', u'Bipasha Basu', u'Riteish Deshmukh', u'Anupam Kher', u'Rohit Shetty', u'Navjot Singh Sidhu', u'Nargis Fakhri', u'Anurag Kashyap', u'Pawan Kalyan', u'Shilpa Shetty', u'Imtiaz Ali', u'Anil Kapoor', u'Dhanush', u'Kirron Kher', u'Allu Arjun', u'Sukhwinder Singh', u'Shankar-Ehsaan-Loy', u'Hema Malini', u'Viswanathan Anand', u'Vishal-Shekhar', u'Shaan', u'Leander Paes', u'Prabhudheva', u'Rohan Bopanna', u'Sajid Nadiadwala', u'Anirban Lahiri', u'Mithun Chakraborty', u'Vir Das', u'Manish Paul', u'Malaika Arora Khan', u'Amish Tripathi', u'Ram Kapoor', u'Remo D’Souza', u"Remo D'Souza", u'Terence Lewis', u'Papa CJ']
-bollywood_names_b = sc.broadcast(set([x.lower() for x in bollywood_names]))
-
-def sorted_names_subset_implications(lowercase_name_subset_b):
-  return sorted_like_topic_implications \
-  .filter(lambda x: x[1][1][0].lower() in lowercase_name_subset_b.value)
-
-**/
-
-
-
-var buffer = new ListBuffer[String]()
-
-for (x <- bollywood_names){ 
-    buffer += (x.toLowerCase())
-}
-
-val bollywood_names_b = sc.broadcast(buffer.toSet)
-
-def sorted_names_subset_implications(lowercase_name_subset_b: RDD[String]) = {
-    sorted_like_topic_implications.filter(x => lowercase_name_subset_b.value.contains(x._2._2._1.toLowerCase()))
-}
-
-val n_like_topics = topic_likes_b.value.length
-
-if (many_topic_entities){
-    //top 5% of topic likes by like count, rounded down
-    //per discussion on 10/19/15, this should actually be the list of facebook pages that NBA provided us
-    //However, we'd need a good way to match those up to our IDs. I'm sure there is one, but in the 
-    //interest of time I'm putting that off for today.
-    val basic_topic_likes_b = sc.broadcast(likeTopicCount
-        .filter(x=> topic_likes_b.value.contains(x._1))
-        .sortBy(x => x._2, False, SLICES)
-        .map(x=> x._1)
-        .take((n_like_topics * 0.05).toInt).toSet)
-    //top 20% of topic likes by like count, rounded down
-    val common_topic_likes_b = sc.broadcast(like_topic_count
-        .filter(lambda x: x[0] in topic_likes_b.value)
-        .sortBy(lambda x: x[1], False, SLICES)
-        .map(lambda x: x[0])
-        .take(int(n_like_topics * 0.2)).toSet)
-    //calculates avidity score for a like, based on ID
-    def score_avidity(x):
-        if x in basic_topic_likes_b.value:
-            return 1
-        if x in topic_likes_b.value:
-            if x in common_topic_likes_b.value:
-                return 2
-            else:
-                return 4
-        return 0
-
-    def score_avidity(x: String) : Int = {
-        if(basic_topic_likes_b.value.contains(x)){
-            return 1
-        }
-        if(topic_likes_b.value.contains(x)){
-            if(common_topic_likes_b.value.contains(x)){
-                return 2
-            }
-            else {
-                return 4
-            }
-        }
-        return 0
-    }
-
-    //(like_ID, avidity score)
-    topic_avidity_score = topic_and_big_likes
-        .map(x=> (x._1, score_avidity(x._1)))
-
-    //returns an avidity ranking
-    def avidity_ranking(x):
-        if (x >= 6){
-            return "Avid"
-        }
-        if(x >= 3){
-            return "Intermediate"
-        }
-        if(x >= 1){
-            return "Casual"
-        }
-        return "Non-Fan"
-    //(person_ID, avidity ranking)
-    person_avidity_ranking = targeted_like_facts
-        .join(topic_avidity_score)
-        .map(x => (x._2._1, x._2._2))
-        .reduceByKey((x,y) => x+y)
-        .coalesce(SLICES)
-        .map(x =>(x._1, avidity_ranking(x._2)))
-        .setName("person_avidity_ranking")
-        .cache()
-
-}
