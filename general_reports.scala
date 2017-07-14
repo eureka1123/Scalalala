@@ -17,6 +17,11 @@ import scala.collection.mutable.StringBuilder
 import org.apache.spark.rdd.RDD
 import org.apache.spark.broadcast.Broadcast
 import collection.mutable.HashMap
+import scalaj.http.Http
+import play.api.libs.json._
+import javax.imageio.ImageIO
+import net.iharder.Base64
+import java.net.URL
 
 object GeneralReports {
 
@@ -30,7 +35,6 @@ object GeneralReports {
         // conf.set("spark.executor.memory", "20g")
             
         // val sc = SparkContext(conf=conf)
-
         val TOPIC = "missmalini"
         val TOPIC_NAME = "MissMalini"
         val REPORT_DIR = "/home/xiaoluguo/missmalini2/"
@@ -845,20 +849,36 @@ object GeneralReports {
             }
         }
 
-        def get_fb_image(ia_id: String){
-          val fbid = iaFbMapB.value(ia_id)
-          val fbImGetter = "https://graph.facebook.com/" + fbid + "/picture?access_token=" + FB_ACCESS_TOKEN + "&redirect=false&height=200&width=200"
-          try:
-            val fbImResponse = requests.get(fbImGetter, verify=false)
-            val fbImUrl = fbImResponse.json().get("data").get("url")
-            val fbImName = re.search("/(\w+\.\w+)\?", fbImUrl).groups()(0)
-            val imFile = requests.get(fbImUrl, verify=false)
-            val im = Image.open(StringIO(im_file.content))
-            im.save(REPORT_DIR + "predictors/" + fbImName)
-            return fbImName
-          catch:
-            case e: => println("Some error")
-          return "PLACEHOLDER.JPG"
+        val get_fb_image: (String) =>  String =  (ia_id: String) => {
+            val fbid = "100006182919837" //iaFbMapB.value("123")
+            val FB_ACCESS_TOKEN = "EAAFz1hY1lnMBALoHipYvdcultXfNB7t2aBjKGY5jK73KHRYDlvsZAep2mcYa2biNBc2wFdQlxzpc7n1YSjZAmC3DY0L9CsvH2ZB0BqasxyQWqZCUR2ibFZA6lZBCoCsh2F9SCVS24mf0hnERbWykZCBIuv5ALzqJ64aWZAd0tTiqZC2rOQBvflkiEJjS711ySIhwZD"
+            val fbImGetter = "https://graph.facebook.com/" + fbid + "/picture?access_token=" + FB_ACCESS_TOKEN + "&redirect=false&height=200&width=200"
+            try{
+                val fbImResponse = Http(fbImGetter).param("verify", "false").asString
+                val fbImUrlTemp : JsValue = Json.parse(fbImResponse.body)
+                val fbImUrl = Json.stringify((fbImUrlTemp \ "data" \ "url").get)
+                val fbImName = """/(\w+\.\w+)\?""".r.findFirstIn(fbImUrl).get
+                // val fbImName = re.search("/(\w+\.\w+)\?", fbImUrl).groups()(0)
+                val url = new URL(fbImUrl.substring(1,fbImUrl.length-1))
+                val im =ImageIO.read(url)
+
+                val outputfile: File = new File(REPORT_DIR + "predictors/" + fbImName.substring(0,fbImName.length-1))
+                
+
+
+
+                val imFile = Http(fbImUrl.substring(1,fbImUrl.length-1)).asString
+                val imageTemp = Base64.decode(imFile.body)
+                val stream: InputStream = new ByteArrayInputStream(imFile.body.getBytes("UTF-8"))
+                val temp = Base64.decodeBase64(stream)
+                val im =ImageIO.read(stream)
+                ImageIO.write(im, "jpg", outputfile);
+                fbImName
+            }catch{
+                case e: IllegalArgumentException => "PLACEHOLDER.JPG"
+                case f: NoSuchElementException =>  "PLACEHOLDER.JPG"
+                "PLACEHOLDER.JPG"
+            }
         }
     }
 }
