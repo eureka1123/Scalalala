@@ -23,9 +23,9 @@ import javax.imageio.ImageIO
 import net.iharder.Base64
 import java.net.URL
 
-object GeneralReports {
+//object GeneralReports {
 
-    def main(args: Array[String]) {
+  //  def main(args: Array[String]) {
         // val conf = SparkConf()
         // conf.setAppName("YOUR APP NAME HERE")
         // conf.setMaster("spark://compute-master:7077")
@@ -53,48 +53,48 @@ object GeneralReports {
             .setName("dimLikes")
             .persist(MEMORY_ONLY_SER)
 
-        val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
+        // val iaFbMapB = sc.broadcast(dimLikes.map(x => (x(0), x(3))).distinct().collect().toMap)
 
         val likes = dimLikes.map(x => (x(0), (x(1), x(2)))).distinct()
 
         // THIS IS OLD, BUT CAN HELP FIND ENTITIES
-        // val evalEntity: (Array[(String,(String, String))]) => String = (fb_entities_file :Array[(String,(String, String))]) => {
+        val evalEntity: (Array[(String,(String, String))]) => String = (fb_entities_file :Array[(String,(String, String))]) => {
 
-        //     val B = new StringBuilder
+            val B = new StringBuilder
 
-        //     for(entry <- fb_entities_file) {
-        //         B ++= entry._1 + ","
-        //         B ++= entry._2._1 + "," + entry._2._2 + "--"
-        //     }
+            for(entry <- fb_entities_file) {
+                B ++= entry._1 + ","
+                B ++= entry._2._1 + "," + entry._2._2 + "--"
+            }
 
-        //     B.deleteCharAt(B.length-1)
-        //     val resultString = B.toString
+            B.deleteCharAt(B.length-1)
+            val resultString = B.toString
 
-        //     resultString
-        // }
+            resultString
+        }
 
-        // val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
-        //     if (a!=None){
-        //         val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
-        //         val sr2="malini".r.findFirstMatchIn((a+b).toLowerCase())
-        //         if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
-        //             true
-        //         } else {
-        //             false
-        //         }
-        //     }else{
-        //         false
-        //     }
-        // }
+        val safe_match: (String,String) => Boolean = (a:String,b:String) =>{
+            if (a!=None){
+                val sr ="miss".r.findFirstMatchIn(a.toLowerCase())
+                val sr2="malini".r.findFirstMatchIn((a+b).toLowerCase())
+                if (sr!=None && sr2!=None && sr.get.start< sr2.get.start){
+                    true
+                } else {
+                    false
+                }
+            }else{
+                false
+            }
+        }
 
-        // val fbEntities = likes.filter(x => safe_match(x._2._1,x._2._2)).collect()
+        val fbEntities = likes.filter(x => safe_match(x._2._1,x._2._2)).collect()
 
-        // val fbEntitiesString = evalEntity(fbEntities)
+        val fbEntitiesString = evalEntity(fbEntities)
 
-        // //human readable file
-        // val fp = new PrintWriter(new File(ENTITY_FILE))
-        // fp.write(fbEntitiesString)
-        // fp.close()
+        //human readable file
+        val fp = new PrintWriter(new File(ENTITY_FILE))
+        fp.write(fbEntitiesString)
+        fp.close()
 
         val evalString: (String) => ListBuffer[(String, (String, String))] = (longString : String) => {
 
@@ -446,10 +446,14 @@ object GeneralReports {
           .sortBy(x => x._2._1, false, SLICES) 
           .persist(MEMORY_ONLY_SER)
 
-        var sortedOfftopicImplications = sortedLikeTopicImplications 
+        var sortedOfftopicImplicationsOpp = sortedLikeTopicImplications 
             // .filter(x => topicLikesB.value.contains(x._1.toInt)) 
             .join(topicLikesBPre)
-            .map(x => (x._1,x._2._1))   
+            .map(x => (x._1, x._2._1))
+
+        val sortedOfftopicImplications = sortedLikeTopicImplications
+            .subtract(sortedOfftopicImplicationsOpp)
+            // .map(x => (x._1,x._2._1))   
             .persist(MEMORY_ONLY_SER)
 
         //Make a file with the top 5000 putatively off-topic entities, for manual fixing
@@ -849,38 +853,38 @@ object GeneralReports {
             }
         }
 
-        val get_fb_image: (String) =>  String =  (ia_id: String) => {
-            val fbid = "100006182919837" //iaFbMapB.value("123")
-            val FB_ACCESS_TOKEN = "EAAFz1hY1lnMBALoHipYvdcultXfNB7t2aBjKGY5jK73KHRYDlvsZAep2mcYa2biNBc2wFdQlxzpc7n1YSjZAmC3DY0L9CsvH2ZB0BqasxyQWqZCUR2ibFZA6lZBCoCsh2F9SCVS24mf0hnERbWykZCBIuv5ALzqJ64aWZAd0tTiqZC2rOQBvflkiEJjS711ySIhwZD"
-            val fbImGetter = "https://graph.facebook.com/" + fbid + "/picture?access_token=" + FB_ACCESS_TOKEN + "&redirect=false&height=200&width=200"
-            try{
-                val fbImResponse = Http(fbImGetter).param("verify", "false").asString
-                val fbImUrlTemp : JsValue = Json.parse(fbImResponse.body)
-                val fbImUrl = Json.stringify((fbImUrlTemp \ "data" \ "url").get)
-                val fbImName = """/(\w+\.\w+)\?""".r.findFirstIn(fbImUrl).get
-                // val fbImName = re.search("/(\w+\.\w+)\?", fbImUrl).groups()(0)
-                val url = new URL(fbImUrl.substring(1,fbImUrl.length-1))
-                val im =ImageIO.read(url)
+        // val get_fb_image: (String) =>  String =  (ia_id: String) => {
+        //     val fbid = "100006182919837" //iaFbMapB.value("123")
+        //     val FB_ACCESS_TOKEN = "EAAFz1hY1lnMBALoHipYvdcultXfNB7t2aBjKGY5jK73KHRYDlvsZAep2mcYa2biNBc2wFdQlxzpc7n1YSjZAmC3DY0L9CsvH2ZB0BqasxyQWqZCUR2ibFZA6lZBCoCsh2F9SCVS24mf0hnERbWykZCBIuv5ALzqJ64aWZAd0tTiqZC2rOQBvflkiEJjS711ySIhwZD"
+        //     val fbImGetter = "https://graph.facebook.com/" + fbid + "/picture?access_token=" + FB_ACCESS_TOKEN + "&redirect=false&height=200&width=200"
+        //     try{
+        //         val fbImResponse = Http(fbImGetter).param("verify", "false").asString
+        //         val fbImUrlTemp : JsValue = Json.parse(fbImResponse.body)
+        //         val fbImUrl = Json.stringify((fbImUrlTemp \ "data" \ "url").get)
+        //         val fbImName = """/(\w+\.\w+)\?""".r.findFirstIn(fbImUrl).get
+        //         // val fbImName = re.search("/(\w+\.\w+)\?", fbImUrl).groups()(0)
+        //         val url = new URL(fbImUrl.substring(1,fbImUrl.length-1))
+        //         val im =ImageIO.read(url)
 
-                val outputfile: File = new File(REPORT_DIR + "predictors/" + fbImName.substring(0,fbImName.length-1))
+        //         val outputfile: File = new File(REPORT_DIR + "predictors/" + fbImName.substring(0,fbImName.length-1))
                 
 
 
 
-                val imFile = Http(fbImUrl.substring(1,fbImUrl.length-1)).asString
-                val imageTemp = Base64.decode(imFile.body)
-                val stream: InputStream = new ByteArrayInputStream(imFile.body.getBytes("UTF-8"))
-                val temp = Base64.decodeBase64(stream)
-                val im =ImageIO.read(stream)
-                ImageIO.write(im, "jpg", outputfile);
-                fbImName
-            }catch{
-                case e: IllegalArgumentException => "PLACEHOLDER.JPG"
-                case f: NoSuchElementException =>  "PLACEHOLDER.JPG"
-                "PLACEHOLDER.JPG"
-            }
-        }
-    }
-}
+        //         val imFile = Http(fbImUrl.substring(1,fbImUrl.length-1)).asString
+        //         val imageTemp = Base64.decode(imFile.body)
+        //         val stream: InputStream = new ByteArrayInputStream(imFile.body.getBytes("UTF-8"))
+        //         val temp = Base64.decodeBase64(stream)
+        //         val im =ImageIO.read(stream)
+        //         ImageIO.write(im, "jpg", outputfile);
+        //         fbImName
+        //     }catch{
+        //         case e: IllegalArgumentException => "PLACEHOLDER.JPG"
+        //         case f: NoSuchElementException =>  "PLACEHOLDER.JPG"
+        //         "PLACEHOLDER.JPG"
+        //     }
+        // }
+  //  }
+//}
 
 
