@@ -18,7 +18,9 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.broadcast.Broadcast
 import collection.mutable.HashMap
 import scalaj.http.Http
-import play.api.libs.json._
+import org.json4s._
+import org.json4s.jackson.JsonMethods._
+// import play.api.libs.json._
 import javax.imageio.ImageIO
 import net.iharder.Base64
 import java.net.URL
@@ -112,12 +114,23 @@ import java.net.URL
 
         val topicLikesString = Source.fromFile(ENTITY_FILE).mkString
 
-        val topicLikes = sc.parallelize(evalString(topicLikesString).toList)
+        // val topicLikesString = Source.fromFile("tm_organic.json").mkString
 
-        val topicLikesBPre = sc.parallelize(topicLikes.map(x => (x._1,1)).collect())
+        implicit val formats = DefaultFormats
 
-        val topicLikesB = sc.broadcast(topicLikes.map(x => x._1).collect().toSet)
+        val topicLikes = parse(topicLikesString).extract[List[JArray]]
+        // val topicLikes = sc.parallelize(evalString(topicLikesString).toList)
+
+        val topicLikesBPre = sc.parallelize(topicLikes.map(x => (x(0).extract[String],1)))
+
+        val topicLikesB = sc.broadcast(topicLikes.map(x => x(0).extract[String]).toSet)
+
+        // val topicLikesBPre = sc.parallelize(topicLikes.map(x => (x._1,1)).collect())
+
+        // val topicLikesB = sc.broadcast(topicLikes.map(x => x._1).collect().toSet)
         
+        
+
         // val topicLikesBPre = topicLikes.map(x => x._1).collect().toSet
 
         // var topicLikesBValue = scala.collection.mutable.Set[Int]()
@@ -125,6 +138,8 @@ import java.net.URL
         // topicLikesBPre.foreach{
         //     topicLikesBValue += _.toInt
         // }
+
+
 
         // val topicLikesB = sc.broadcast(topicLikesBPre)
         
