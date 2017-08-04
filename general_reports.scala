@@ -37,13 +37,21 @@ import java.net.URL
         // conf.set("spark.executor.memory", "20g")
             
         // val sc = SparkContext(conf=conf)
-        val TOPIC = "missmalini"
-        val TOPIC_NAME = "MissMalini"
-        val REPORT_DIR = "/home/xiaoluguo/missmalini2/"
+        // hicare_cleaning.json
+        val TOPIC = "hicare_cleaning"
+        val TOPIC_NAME = "HiCare"
+        val REPORT_DIR = "/home/xiaoluguo/HiCare/"
         val DATA_ROOT = "hdfs://10.142.0.63:9000/data"
         val ARCHIVE_ROOT = "hdfs://10.142.0.63:9000/" + TOPIC
-        val ENTITY_FILE = TOPIC + "_entities2.txt"
+        val ENTITY_FILE = TOPIC + ".json"
         val SLICES = 2000
+        // val TOPIC = "missmalini"
+        // val TOPIC_NAME = "MissMalini"
+        // val REPORT_DIR = "/home/xiaoluguo/missmalini2/"
+        // val DATA_ROOT = "hdfs://10.142.0.63:9000/data"
+        // val ARCHIVE_ROOT = "hdfs://10.142.0.63:9000/" + TOPIC
+        // val ENTITY_FILE = TOPIC + "_entities2.txt"
+        // val SLICES = 2000
 
         var likeFacts = sc.textFile(DATA_ROOT+"/fact_like", SLICES).map(x => x.split("""\t"""))
             .filter(x => (x.length > 2))
@@ -118,13 +126,13 @@ import java.net.URL
 	val topicLikes = sc.parallelize(topicLikesPre.map(x => (x(0).extract[String], ((x(1)(0).extract[String], x(1)(1).extract[String])))))
 
 
-        val topicLikesBPre = sc.parallelize(topicLikes.map(x => (x(0).extract[String],1)))
+        // val topicLikesBPre = sc.parallelize(topicLikes.map(x => (x(0).extract[String],1)))
 
-        val topicLikesB = sc.broadcast(topicLikes.map(x => x(0).extract[String]).toSet)
+        // val topicLikesB = sc.broadcast(topicLikes.map(x => x(0).extract[String]).toSet)
 
-        // val topicLikesBPre = sc.parallelize(topicLikes.map(x => (x._1,1)).collect())
+        val topicLikesBPre = sc.parallelize(topicLikes.map(x => (x._1,1)).collect())
 
-        // val topicLikesB = sc.broadcast(topicLikes.map(x => x._1).collect().toSet)
+        val topicLikesB = sc.broadcast(topicLikes.map(x => x._1).collect().toSet)
         
         
 
@@ -429,7 +437,7 @@ import java.net.URL
             likeTopicFractions.saveAsTextFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions")
         } else{
             var pre = sc.textFile("hdfs://10.142.0.63:9000/" + TOPIC + "/like_topic_fractions").persist(MEMORY_ONLY_SER)//.map(eval).persist(MEMORY_ONLY_SER)) //fix eval
-            likeTopicFractions = pre.map(transform)
+            likeTopicFractions = pre.map(transformScala)
         } 
 
         pathBigLikes = new Path("/" + TOPIC + "/like_topic_sum")
