@@ -113,13 +113,10 @@ import java.net.URL
         }
 
         val topicLikesString = Source.fromFile(ENTITY_FILE).mkString
-
-        // val topicLikesString = Source.fromFile("tm_organic.json").mkString
-
         implicit val formats = DefaultFormats
+	val topicLikesPre = parse(topicLikesString).extract[List[JArray]]
+	val topicLikes = sc.parallelize(topicLikesPre.map(x => (x(0).extract[String], ((x(1)(0).extract[String], x(1)(1).extract[String])))))
 
-        val topicLikes = parse(topicLikesString).extract[List[JArray]]
-        // val topicLikes = sc.parallelize(evalString(topicLikesString).toList)
 
         val topicLikesBPre = sc.parallelize(topicLikes.map(x => (x(0).extract[String],1)))
 
