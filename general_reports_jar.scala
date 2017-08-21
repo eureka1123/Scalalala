@@ -24,18 +24,24 @@ import org.json4s.jackson.JsonMethods._
 // import net.iharder.Base64
 // import java.net.URL
 
-//object GeneralReports {
+object GeneralReports {
 
-  //  def main(args: Array[String]) {
-        // val conf = SparkConf()
-        // conf.setAppName("YOUR APP NAME HERE")
-        // conf.setMaster("spark://compute-master:7077")
-        // conf.set("spark.cores.max", "52")
-        // conf.set("spark.shuffle.consolidateFiles", "true")
-        // conf.set("spark.default.parallelism", "100")
-        // conf.set("spark.executor.memory", "20g")
-            
-        // val sc = SparkContext(conf=conf)
+    def main(args: Array[String]) {
+        val conf1 = new SparkConf()
+        conf1.setAppName("Spark Shell")
+        conf1.setMaster("spark://compute-master:7077")
+        conf1.set("spark.cores.max", "52")
+        conf1.set("spark.shuffle.consolidateFiles", "true")
+        conf1.set("spark.default.parallelism", "100")
+        conf1.set("spark.executor.memory", "40g")
+        conf1.set("spark.driver.memory", "20g")
+        conf1.set("spark.speculation", "true")
+        conf1.set("spark.akka.frameSize", "500")
+        conf1.set("spark.akka.askTimeout", "120")
+        conf1.set("spark.driver.maxResultSize", "0")
+ 
+        val sc = new SparkContext(conf1)
+        
         val TOPIC = "umeed"
         val TOPIC_NAME = "Umeed"
         val REPORT_DIR = "/home/xiaoluguo/umeed/"
@@ -444,16 +450,16 @@ import org.json4s.jackson.JsonMethods._
             .persist(MEMORY_ONLY_SER)
 
         //Make a file with the top 5000 on-topic entities
-        val otFile = TOPIC + "_top_liketopics.txt"
-        val otFileWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(otFile)))
+        var otFile = TOPIC + "_top_liketopics.txt"
+        var otFileWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(otFile)))
         for (x <- sortedLikeTopicImplications.take(5000)) {
             otFileWriter.write(x + "\n")  // however you want to format it
         }
         otFileWriter.close()
 
         //Make a file with the top 5000 putatively off-topic entities, for manual fixing
-        val otFile = TOPIC + "_top_offtopics.txt"
-        val otFileWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(otFile)))
+        otFile = TOPIC + "_top_offtopics.txt"
+        otFileWriter = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(otFile)))
         for (x <- sortedOfftopicImplications.take(5000)) {
             otFileWriter.write(x + "\n")  // however you want to format it
         }
@@ -879,7 +885,7 @@ import org.json4s.jackson.JsonMethods._
         //         "PLACEHOLDER.JPG"
         //     }
         // }
-  //  }
-//}
+   }
+}
 
 
